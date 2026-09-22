@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/shared/button-link";
 import { PageContainer } from "@/components/layout/page-container";
 
 // Placeholder landing page; template cards arrive in Phase 3.
@@ -13,9 +12,9 @@ export default function Home() {
         Create a poll in a minute, share the link, and see what your group really thinks, with
         clear winners, response rates and insights.
       </p>
-      <Button nativeButton={false} render={<Link href="/polls/new" />} size="lg">
+      <ButtonLink href="/polls/new" size="lg">
         Create a poll
-      </Button>
+      </ButtonLink>
     </PageContainer>
   );
 }

@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
@@ -21,7 +22,10 @@ export default defineConfig({
   webServer: {
     command: `pnpm build && pnpm start --port ${PORT}`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    // Never reuse: a stray dev server would point at the wrong database.
+    reuseExistingServer: false,
     timeout: 180_000,
+    // E2E runs against the disposable test database, never the dev one.
+    env: { DATABASE_URL: process.env.DATABASE_URL_TEST ?? "", APP_URL: baseURL },
   },
 });
