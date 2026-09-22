@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { addDays, format } from "date-fns";
+import { tz } from "@date-fns/tz";
 import { PlusIcon, XIcon } from "lucide-react";
 import { FieldShell } from "@/components/forms/field-shell";
 import { NativeSelect } from "@/components/forms/native-select";
@@ -14,8 +15,8 @@ import { POLL_LIMITS } from "@/lib/validation/poll";
 import type { PollTypeEditor, TypeEditorProps } from "../editor-types";
 import type { AvailabilityConfig } from "./definition";
 
-/** Wall-clock slot in the poll's time zone; converted to instants on submit. */
-export type SlotDraft = { key: string; date: string; time: string; durationMin: number };
+/** Wall-clock slot in the poll's time zone; converted to instants on submit. `id` = already saved. */
+export type SlotDraft = { key: string; date: string; time: string; durationMin: number; id?: string };
 
 const DURATIONS = [30, 60, 90, 120, 180, 240];
 const MINUTE = 60_000;
@@ -58,17 +59,21 @@ function addMinutesToTime(time: string, minutes: number): string {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
-function TimeZoneField({ config, onConfigChange, errors }: TypeEditorProps) {
+function TimeZoneField({ config, onConfigChange, errors, configLocked }: TypeEditorProps) {
   const { timezone } = config as AvailabilityConfig;
   const zones = useMemo(() => timeZones(timezone), [timezone]);
   return (
     <FieldShell
       label="Time zone"
-      description="Slots are shown in this zone, with each voter's local time alongside."
+      description={
+        configLocked
+          ? "Locked because people have already voted."
+          : "Slots are shown in this zone, with each voter's local time alongside."
+      }
       errors={errors["config.timezone"]}
     >
       {(control) => (
-        <NativeSelect {...control} value={timezone} onChange={(event) => onConfigChange({ timezone: event.target.value })}>
+        <NativeSelect {...control} disabled={configLocked} value={timezone} onChange={(event) => onConfigChange({ timezone: event.target.value })}>
           {zones.map((zone) => (
             <option key={zone} value={zone}>
               {zone.replaceAll("_", " ")}
@@ -80,7 +85,7 @@ function TimeZoneField({ config, onConfigChange, errors }: TypeEditorProps) {
   );
 }
 
-function SlotPicker({ options, onOptionsChange, errors }: TypeEditorProps) {
+function SlotPicker({ options, onOptionsChange, errors, lockedOptionIds }: TypeEditorProps) {
   const slots = options as SlotDraft[];
   const [date, setDate] = useState(() => format(addDays(new Date(), 1), "yyyy-MM-dd"));
   const [time, setTime] = useState("18:00");
@@ -156,6 +161,7 @@ function SlotPicker({ options, onOptionsChange, errors }: TypeEditorProps) {
               <h3 className="mb-2 text-sm font-medium">{formatDay(new Date(`${day}T12:00:00Z`), "UTC")}</h3>
               <ul className="flex flex-col gap-2">
                 {entries.map(({ slot, index }) => {
+                  const locked = Boolean(slot.id && lockedOptionIds.has(slot.id));
                   const slotErrors = [
                     ...(errors[`options.${index}.startsAt`] ?? []),
                     ...(errors[`options.${index}.endsAt`] ?? []),
@@ -175,7 +181,9 @@ function SlotPicker({ options, onOptionsChange, errors }: TypeEditorProps) {
                           variant="ghost"
                           size="icon-lg"
                           onClick={() => removeSlot(slot.key)}
-                          aria-label={`Remove ${formatDay(new Date(`${day}T12:00:00Z`), "UTC")} ${describeSlot(slot)}`}
+                          disabled={locked}
+                          title={locked ? "Has votes, so it can't be removed" : undefined}
+                          aria-label={`${locked ? "Can't remove (has votes)" : "Remove"} ${formatDay(new Date(`${day}T12:00:00Z`), "UTC")} ${describeSlot(slot)}`}
                         >
                           <XIcon />
                         </Button>
@@ -206,14 +214,29 @@ export const availabilityEditor: PollTypeEditor = {
   sectionDescription: "Add the dates and times people can choose from.",
   defaultConfig: () => ({ timezone: browserTimeZone() }),
   initialOptions: () => [],
+  fromPoll: (config, options) => {
+    const { timezone } = config as AvailabilityConfig;
+    const zone = { in: tz(timezone) };
+    return options
+      .filter((option) => option.startsAt && option.endsAt)
+      .map((option) => ({
+        key: draftKey(),
+        id: option.id,
+        date: format(option.startsAt!, "yyyy-MM-dd", zone),
+        time: format(option.startsAt!, "HH:mm", zone),
+        durationMin: Math.round((option.endsAt!.getTime() - option.startsAt!.getTime()) / MINUTE),
+      }));
+  },
   toSubmission: (config, options) => {
     const { timezone } = config as AvailabilityConfig;
     return {
       config,
       options: (options as SlotDraft[]).map((slot) => {
+        const id = slot.id && { id: slot.id };
         const start = zonedDateTime(slot.date, slot.time, timezone);
-        if (!start) return { startsAt: "", endsAt: "" };
+        if (!start) return { ...id, startsAt: "", endsAt: "" };
         return {
+          ...id,
           startsAt: start.toISOString(),
           endsAt: new Date(start.getTime() + slot.durationMin * MINUTE).toISOString(),
         };

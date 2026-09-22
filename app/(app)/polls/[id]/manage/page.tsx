@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react";
+import { ArrowLeftIcon, ExternalLinkIcon, PencilIcon } from "lucide-react";
 import { PageContainer } from "@/components/layout/page-container";
 import { AutoRefresh } from "@/components/insights/auto-refresh";
 import { PollResults } from "@/components/insights/poll-results";
 import { PollHeader } from "@/components/poll/poll-header";
+import { PollMoreMenu } from "@/components/poll/poll-more-menu";
 import { ClosePollDialog, ReopenPollButton } from "@/components/poll/poll-status-controls";
 import { SharePanel } from "@/components/poll/share-panel";
 import { ShareSheet } from "@/components/poll/share-sheet";
@@ -45,10 +46,15 @@ export default async function ManagePollPage({ params, searchParams }: PageProps
       <div className="flex flex-wrap gap-2">
         <ShareSheet url={shareUrl} title={poll.title} defaultOpen={created === "1"} />
         {open ? <ClosePollDialog pollId={poll.id} /> : canReopen(poll, now) && <ReopenPollButton pollId={poll.id} />}
+        <ButtonLink href={`/polls/${poll.id}/edit`} variant="outline" size="lg" className="h-11">
+          <PencilIcon data-icon="inline-start" aria-hidden />
+          Edit
+        </ButtonLink>
         <ButtonLink href={`/p/${poll.slug}/results`} variant="ghost" size="lg" className="h-11">
           <ExternalLinkIcon data-icon="inline-start" aria-hidden />
           Voter view
         </ButtonLink>
+        <PollMoreMenu pollId={poll.id} title={poll.title} responseCount={insights.common.totalResponses} />
       </div>
 
       <PollResults

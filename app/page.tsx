@@ -1,11 +1,13 @@
 import { PageContainer } from "@/components/layout/page-container";
 import { TemplateGrid } from "@/components/poll/template-card";
 import { ButtonLink } from "@/components/shared/button-link";
+import { QueryToast } from "@/components/shared/query-toast";
 import { POLL_TEMPLATES } from "@/lib/poll/templates";
 
 export default function Home() {
   return (
     <PageContainer className="flex flex-col gap-10 py-12 sm:py-16">
+      <QueryToast param="account" value="deleted" message="Your account and polls were deleted" />
       <section className="flex flex-col items-start gap-5">
         <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
           Decide together, faster.

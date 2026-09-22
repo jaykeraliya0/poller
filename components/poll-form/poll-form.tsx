@@ -1,23 +1,53 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createPollAction } from "@/actions/polls";
+import { createPollAction, updatePollAction } from "@/actions/polls";
 import { FormSection } from "@/components/forms/form-section";
 import { TextField, TextareaField } from "@/components/forms/text-field";
+import { ButtonLink } from "@/components/shared/button-link";
 import { FormAlert } from "@/components/shared/form-alert";
 import { STICKY_BAR_PADDING, StickyActionBar } from "@/components/shared/sticky-action-bar";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import type { PollType } from "@/generated/prisma/enums";
+import type { PollTemplate, PollType, ResultsVisibility } from "@/generated/prisma/enums";
 import type { ActionFailure, FieldErrors } from "@/lib/errors";
 import { parsePollSubmission, type PollSubmission } from "@/lib/poll/submission";
 import type { PollTemplateDefinition } from "@/lib/poll/templates";
 import { cn } from "@/lib/utils";
 import { POLL_LIMITS } from "@/lib/validation/poll";
+import type { ExistingOption } from "@/poll-types/editor-types";
 import { getPollTypeEditor } from "@/poll-types/editors";
-import { DEFAULT_SETTINGS_DRAFT, SettingsPanel, settingsToSubmission, type SettingsDraft } from "./settings-panel";
+import {
+  DEFAULT_SETTINGS_DRAFT,
+  SettingsPanel,
+  settingsToSubmission,
+  toLocalInputValue,
+  type SettingsDraft,
+} from "./settings-panel";
 import { TypePicker } from "./type-picker";
+
+/** A saved poll, as the edit form needs it. */
+export type EditablePoll = {
+  id: string;
+  type: PollType;
+  template: PollTemplate;
+  title: string;
+  description: string | null;
+  config: unknown;
+  options: ExistingOption[];
+  closesAt: Date | null;
+  allowVoteChange: boolean;
+  isAnonymous: boolean;
+  requireLogin: boolean;
+  resultsVisibility: ResultsVisibility;
+  expectedParticipants: number | null;
+  responseCount: number;
+  votedOptionIds: string[];
+};
+
+export type PollFormProps = { mode: "create"; template: PollTemplateDefinition } | { mode: "edit"; poll: EditablePoll };
 
 type Draft = {
   type: PollType;
@@ -28,28 +58,35 @@ type Draft = {
   settings: SettingsDraft;
 };
 
-function initialDraft(template: PollTemplateDefinition): Draft {
-  const editor = getPollTypeEditor(template.type);
+function initialDraft(props: PollFormProps): Draft {
+  if (props.mode === "create") {
+    const { template } = props;
+    const editor = getPollTypeEditor(template.type);
+    return {
+      type: template.type,
+      title: template.title,
+      description: template.description,
+      config: { ...(editor.defaultConfig() as object), ...template.config },
+      options: editor.initialOptions(template.optionLabels),
+      settings: DEFAULT_SETTINGS_DRAFT,
+    };
+  }
+  const { poll } = props;
   return {
-    type: template.type,
-    title: template.title,
-    description: template.description,
-    config: { ...(editor.defaultConfig() as object), ...template.config },
-    options: editor.initialOptions(template.optionLabels),
-    settings: DEFAULT_SETTINGS_DRAFT,
-  };
-}
-
-function toSubmission(template: PollTemplateDefinition, draft: Draft): PollSubmission {
-  const { config, options } = getPollTypeEditor(draft.type).toSubmission(draft.config, draft.options);
-  return {
-    template: template.id,
-    type: draft.type,
-    title: draft.title,
-    description: draft.description,
-    config,
-    options,
-    settings: settingsToSubmission(draft.settings),
+    type: poll.type,
+    title: poll.title,
+    description: poll.description ?? "",
+    config: poll.config,
+    options: getPollTypeEditor(poll.type).fromPoll(poll.config, poll.options),
+    settings: {
+      hasDeadline: poll.closesAt !== null,
+      closesAt: poll.closesAt ? toLocalInputValue(poll.closesAt) : "",
+      allowVoteChange: poll.allowVoteChange,
+      isAnonymous: poll.isAnonymous,
+      requireLogin: poll.requireLogin,
+      resultsVisibility: poll.resultsVisibility,
+      expectedParticipants: poll.expectedParticipants?.toString() ?? "",
+    },
   };
 }
 
@@ -66,18 +103,41 @@ function revealFirstError(form: HTMLFormElement | null) {
   });
 }
 
-export function PollForm({ template }: { template: PollTemplateDefinition }) {
+export function PollForm(props: PollFormProps) {
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const [draft, setDraft] = useState(() => initialDraft(template));
+  const [draft, setDraft] = useState(() => initialDraft(props));
   const [attempted, setAttempted] = useState(false);
   const [serverFailure, setServerFailure] = useState<ActionFailure | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const editing = props.mode === "edit" ? props.poll : null;
+  const hasVotes = (editing?.responseCount ?? 0) > 0;
+  const [lockedOptionIds] = useState(() => new Set(editing?.votedOptionIds ?? []));
+
   const editor = getPollTypeEditor(draft.type);
-  const submission = toSubmission(template, draft);
+  const { config, options } = editor.toSubmission(draft.config, draft.options);
+  const submission: PollSubmission = {
+    template: props.mode === "create" ? props.template.id : props.poll.template,
+    type: draft.type,
+    title: draft.title,
+    description: draft.description,
+    config,
+    options,
+    settings: settingsToSubmission(draft.settings),
+  };
+
+  // Mirrors the server: an unchanged saved deadline may already be in the past.
+  const deadlineUnchanged =
+    editing?.closesAt != null && submission.settings.closesAt === editing.closesAt.toISOString();
+  const validate = () =>
+    parsePollSubmission(
+      deadlineUnchanged ? { ...submission, settings: { ...submission.settings, closesAt: null } } : submission,
+    );
+
   const clientErrors: FieldErrors = attempted
     ? (() => {
-        const result = parsePollSubmission(submission);
+        const result = validate();
         return result.success ? {} : result.fieldErrors;
       })()
     : {};
@@ -99,23 +159,42 @@ export function PollForm({ template }: { template: PollTemplateDefinition }) {
     });
   };
 
+  const handleFailure = (failure: ActionFailure) => {
+    setServerFailure(failure);
+    if (failure.fieldErrors) revealFirstError(formRef.current);
+    else toast.error(failure.message);
+  };
+
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAttempted(true);
-    if (!parsePollSubmission(submission).success) {
+    if (!validate().success) {
       revealFirstError(formRef.current);
       return;
     }
     startTransition(async () => {
-      const failure = await createPollAction(submission);
-      // On success the action redirects, so we only get here on failure.
-      setServerFailure(failure);
-      if (failure.fieldErrors) revealFirstError(formRef.current);
-      else toast.error(failure.message);
+      if (!editing) {
+        // On success the action redirects, so we only get here on failure.
+        handleFailure(await createPollAction(submission));
+        return;
+      }
+      const result = await updatePollAction(editing.id, submission);
+      if (!result.ok) return handleFailure(result);
+      toast.success(result.data.reopened ? "Changes saved. The poll is open again." : "Changes saved");
+      router.push(`/polls/${editing.id}/manage`);
     });
   };
 
   const formMessage = serverFailure && !serverFailure.fieldErrors ? serverFailure.message : null;
+  const editorProps = {
+    config: draft.config,
+    options: draft.options,
+    onConfigChange: (next: unknown) => update({ config: next }),
+    onOptionsChange: (next: unknown[]) => update({ options: next }),
+    errors,
+    lockedOptionIds,
+    configLocked: hasVotes,
+  };
 
   return (
     <form ref={formRef} onSubmit={onSubmit} noValidate className={cn("flex flex-col gap-4", STICKY_BAR_PADDING)}>
@@ -139,39 +218,36 @@ export function PollForm({ template }: { template: PollTemplateDefinition }) {
           placeholder="Any context voters should know"
           maxLength={POLL_LIMITS.descriptionMax}
         />
-        {template.id === "CUSTOM" && (
+        {props.mode === "create" && props.template.id === "CUSTOM" && (
           <TypePicker value={draft.type} onChange={changeType} errors={errors.type} />
         )}
       </FormSection>
 
       <FormSection title={editor.sectionTitle} description={editor.sectionDescription}>
-        {editor.ConfigFields && (
-          <editor.ConfigFields
-            config={draft.config}
-            options={draft.options}
-            onConfigChange={(config) => update({ config })}
-            onOptionsChange={(options) => update({ options })}
-            errors={errors}
-          />
-        )}
-        <editor.OptionsEditor
-          config={draft.config}
-          options={draft.options}
-          onConfigChange={(config) => update({ config })}
-          onOptionsChange={(options) => update({ options })}
+        {editor.ConfigFields && <editor.ConfigFields {...editorProps} />}
+        <editor.OptionsEditor {...editorProps} />
+        <FormAlert message={errors.config?.[0]} />
+      </FormSection>
+
+      <FormSection title="Settings" description={editing ? undefined : "Sensible defaults are already set."}>
+        <SettingsPanel
+          value={draft.settings}
+          onChange={(settings) => update({ settings })}
           errors={errors}
+          anonymityLocked={hasVotes}
         />
       </FormSection>
 
-      <FormSection title="Settings" description="Sensible defaults are already set.">
-        <SettingsPanel value={draft.settings} onChange={(settings) => update({ settings })} errors={errors} />
-      </FormSection>
-
-      <StickyActionBar>
+      <StickyActionBar className="flex flex-col gap-2 sm:flex-row">
         <Button type="submit" size="lg" disabled={pending} className="h-11 w-full sm:w-auto sm:min-w-40">
           {pending && <Spinner data-icon="inline-start" />}
-          {pending ? "Creating…" : "Create poll"}
+          {editing ? (pending ? "Saving…" : "Save changes") : pending ? "Creating…" : "Create poll"}
         </Button>
+        {editing && (
+          <ButtonLink href={`/polls/${editing.id}/manage`} variant="ghost" size="lg" className="h-11">
+            Cancel
+          </ButtonLink>
+        )}
       </StickyActionBar>
     </form>
   );

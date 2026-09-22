@@ -12,7 +12,14 @@ export type TypeEditorProps = {
   onOptionsChange: (options: unknown[]) => void;
   /** Full error map; editors read `config.*` and `options.*` paths. */
   errors: FieldErrors;
+  /** Existing options that have votes and so can't be removed. */
+  lockedOptionIds: ReadonlySet<string>;
+  /** Type-specific settings are locked once people have voted. */
+  configLocked: boolean;
 };
+
+/** An option already saved on the poll, when editing. */
+export type ExistingOption = { id: string; label: string; startsAt: Date | null; endsAt: Date | null };
 
 export type PollTypeEditor = {
   /** Options with the same kind survive switching between types. */
@@ -21,6 +28,8 @@ export type PollTypeEditor = {
   sectionDescription: string;
   defaultConfig: () => unknown;
   initialOptions: (labels: string[]) => unknown[];
+  /** Drafts for an existing poll's options, for the edit form. */
+  fromPoll: (config: unknown, options: ExistingOption[]) => unknown[];
   /** Converts drafts into what the setup schema validates. */
   toSubmission: (config: unknown, options: unknown[]) => { config: unknown; options: unknown[] };
   ConfigFields?: ComponentType<TypeEditorProps>;

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { PollTemplateDefinition } from "@/lib/poll/templates";
+import type { PollFormProps } from "./poll-form";
 
 export function PollFormSkeleton() {
   return (
@@ -14,13 +14,14 @@ export function PollFormSkeleton() {
   );
 }
 
-// Client-only: defaults like the browser's time zone and "tomorrow" only exist
-// in the browser, and rendering them on the server would mismatch on hydration.
+// Client-only: defaults like the browser's time zone, "tomorrow" and local
+// deadline times only exist in the browser; server-rendering them would
+// mismatch on hydration.
 const PollForm = dynamic(() => import("./poll-form").then((module) => module.PollForm), {
   ssr: false,
   loading: PollFormSkeleton,
 });
 
-export function PollFormLoader({ template }: { template: PollTemplateDefinition }) {
-  return <PollForm template={template} />;
+export function PollFormLoader(props: PollFormProps) {
+  return <PollForm {...props} />;
 }

@@ -4,6 +4,7 @@ import { PageContainer } from "@/components/layout/page-container";
 import { PollListItem } from "@/components/poll/poll-list-item";
 import { ButtonLink } from "@/components/shared/button-link";
 import { EmptyState } from "@/components/shared/empty-state";
+import { QueryToast } from "@/components/shared/query-toast";
 import { requirePageUser } from "@/lib/auth/guards";
 import { listPollsForOwner } from "@/lib/poll/service";
 
@@ -16,6 +17,7 @@ export default async function DashboardPage() {
 
   return (
     <PageContainer className="py-8">
+      <QueryToast param="deleted" value="1" message="Poll deleted" />
       <h1 className="mb-6 text-2xl font-semibold tracking-tight">My polls</h1>
 
       {polls.length === 0 ? (

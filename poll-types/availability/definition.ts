@@ -16,6 +16,8 @@ export type AvailabilityConfig = z.output<typeof availabilityConfigSchema>;
 
 const slotSchema = z
   .object({
+    /** Existing slot when editing; the service keeps its stored times. */
+    id: z.string().optional(),
     startsAt: z.coerce.date({ error: "Pick a start time" }),
     endsAt: z.coerce.date({ error: "Pick an end time" }),
   })
@@ -23,7 +25,8 @@ const slotSchema = z
     error: "End must be after start",
     path: ["endsAt"],
   })
-  .refine((slot) => slot.startsAt.getTime() > Date.now(), {
+  // Existing slots may have passed already; only new ones must be in the future.
+  .refine((slot) => slot.id !== undefined || slot.startsAt.getTime() > Date.now(), {
     error: "This time slot is in the past",
     path: ["startsAt"],
   });
@@ -51,6 +54,7 @@ const setupSchema = z
     options: [...options]
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
       .map((slot, position) => ({
+        ...(slot.id && { id: slot.id }),
         label: formatSlotLabel(slot.startsAt, slot.endsAt, config.timezone),
         position,
         startsAt: slot.startsAt,
@@ -93,6 +97,10 @@ export const availabilityPollType = definePollType<AvailabilityAnswers, Availabi
 
   computeInsights(ctx) {
     return computeAvailabilityInsights(ctx, availabilityConfigSchema.parse(ctx.poll.config));
+  },
+
+  csvValue(value) {
+    return value === undefined ? "" : (["No", "If need be", "Yes"][value] ?? "");
   },
 
   summarizeAnswers(rows, { config, options }) {

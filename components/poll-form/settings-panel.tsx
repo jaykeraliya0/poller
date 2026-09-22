@@ -63,17 +63,18 @@ type ToggleRowProps = {
   label: string;
   description: string;
   checked: boolean;
+  disabled?: boolean;
   onChange: (checked: boolean) => void;
 };
 
-function ToggleRow({ id, label, description, checked, onChange }: ToggleRowProps) {
+function ToggleRow({ id, label, description, checked, disabled, onChange }: ToggleRowProps) {
   return (
     <Field orientation="horizontal">
       <FieldContent>
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
         <FieldDescription>{description}</FieldDescription>
       </FieldContent>
-      <Switch id={id} checked={checked} onCheckedChange={onChange} />
+      <Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onChange} />
     </Field>
   );
 }
@@ -82,9 +83,11 @@ type SettingsPanelProps = {
   value: SettingsDraft;
   onChange: (value: SettingsDraft) => void;
   errors: FieldErrors;
+  /** Anonymity can't change once people have voted. */
+  anonymityLocked?: boolean;
 };
 
-export function SettingsPanel({ value, onChange, errors }: SettingsPanelProps) {
+export function SettingsPanel({ value, onChange, errors, anonymityLocked = false }: SettingsPanelProps) {
   const set = <K extends keyof SettingsDraft>(key: K, next: SettingsDraft[K]) => onChange({ ...value, [key]: next });
 
   return (
@@ -122,8 +125,13 @@ export function SettingsPanel({ value, onChange, errors }: SettingsPanelProps) {
       <ToggleRow
         id="settings-anonymous"
         label="Anonymous voting"
-        description="Names aren't asked for or shown, not even to you."
+        description={
+          anonymityLocked
+            ? "Locked because people have already voted."
+            : "Names aren't asked for or shown, not even to you."
+        }
         checked={value.isAnonymous}
+        disabled={anonymityLocked}
         onChange={(checked) => set("isAnonymous", checked)}
       />
       <ToggleRow
@@ -174,4 +182,10 @@ export function SettingsPanel({ value, onChange, errors }: SettingsPanelProps) {
       </FieldShell>
     </div>
   );
+}
+
+/** `datetime-local` value (local time) for a saved deadline. */
+export function toLocalInputValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }

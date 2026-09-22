@@ -59,6 +59,10 @@ export const choicePollType = definePollType<ChoiceAnswers, ChoiceInsights>({
     return computeChoiceInsights(ctx, choiceConfigSchema.parse(ctx.poll.config));
   },
 
+  csvValue(value) {
+    return value ? "1" : "";
+  },
+
   summarizeAnswers(rows, { options }) {
     const picked = new Set(rows.map((row) => row.optionId));
     return options

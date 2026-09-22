@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import type { PollTypeEditor, TypeEditorProps } from "../editor-types";
 import { DEFAULT_CHOICE_CONFIG, type ChoiceConfig } from "./definition";
 
-function ChoiceConfigFields({ config, onConfigChange, errors }: TypeEditorProps) {
+function ChoiceConfigFields({ config, onConfigChange, errors, configLocked }: TypeEditorProps) {
   const { multi, maxSelections } = config as ChoiceConfig;
 
   return (
@@ -16,10 +16,13 @@ function ChoiceConfigFields({ config, onConfigChange, errors }: TypeEditorProps)
       <Field orientation="horizontal">
         <FieldContent>
           <FieldLabel htmlFor="choice-multi">Allow multiple choices</FieldLabel>
-          <FieldDescription>Voters can pick more than one option.</FieldDescription>
+          <FieldDescription>
+            {configLocked ? "Locked because people have already voted." : "Voters can pick more than one option."}
+          </FieldDescription>
         </FieldContent>
         <Switch
           id="choice-multi"
+          disabled={configLocked}
           checked={multi}
           onCheckedChange={(checked) => onConfigChange({ multi: checked, maxSelections: checked ? maxSelections : null })}
         />
@@ -37,6 +40,7 @@ function ChoiceConfigFields({ config, onConfigChange, errors }: TypeEditorProps)
               type="number"
               inputMode="numeric"
               min={1}
+              disabled={configLocked}
               className="h-11 w-32"
               value={maxSelections ?? ""}
               onChange={(event) =>
@@ -53,12 +57,13 @@ function ChoiceConfigFields({ config, onConfigChange, errors }: TypeEditorProps)
   );
 }
 
-function ChoiceOptionsEditor({ options, onOptionsChange, errors }: TypeEditorProps) {
+function ChoiceOptionsEditor({ options, onOptionsChange, errors, lockedOptionIds }: TypeEditorProps) {
   return (
     <OptionListEditor
       options={options as LabelDraft[]}
       onChange={onOptionsChange}
       errors={errors}
+      lockedIds={lockedOptionIds}
     />
   );
 }
@@ -69,9 +74,10 @@ export const choiceEditor: PollTypeEditor = {
   sectionDescription: "What can people choose from?",
   defaultConfig: () => ({ ...DEFAULT_CHOICE_CONFIG }),
   initialOptions: (labels) => (labels.length >= 2 ? labels : ["", ""]).map((label) => newLabelDraft(label)),
+  fromPoll: (_config, options) => options.map((option) => newLabelDraft(option.label, option.id)),
   toSubmission: (config, options) => ({
     config,
-    options: (options as LabelDraft[]).map(({ label }) => ({ label })),
+    options: (options as LabelDraft[]).map(({ id, label }) => ({ ...(id && { id }), label })),
   }),
   ConfigFields: ChoiceConfigFields,
   OptionsEditor: ChoiceOptionsEditor,

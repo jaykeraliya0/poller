@@ -5,6 +5,7 @@ import { POLL_LIMITS } from "@/lib/validation/poll";
 export const labelledOptionsSchema = z
   .array(
     z.object({
+      id: z.string().optional(),
       label: z
         .string()
         .trim()
@@ -25,8 +26,9 @@ export const labelledOptionsSchema = z
     });
   });
 
-export const toLabelledOptionRows = (options: { label: string }[]) =>
+export const toLabelledOptionRows = (options: { id?: string; label: string }[]) =>
   options.map((option, position) => ({
+    ...(option.id && { id: option.id }),
     label: option.label,
     position,
     startsAt: null,

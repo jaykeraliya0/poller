@@ -9,14 +9,17 @@ import { draftKey } from "@/lib/draft-key";
 import type { FieldErrors } from "@/lib/errors";
 import { POLL_LIMITS } from "@/lib/validation/poll";
 
-export type LabelDraft = { key: string; label: string };
+/** `id` is set for options already saved on the poll. */
+export type LabelDraft = { key: string; label: string; id?: string };
 
-export const newLabelDraft = (label = ""): LabelDraft => ({ key: draftKey(), label });
+export const newLabelDraft = (label = "", id?: string): LabelDraft => ({ key: draftKey(), label, ...(id && { id }) });
 
 type OptionListEditorProps = {
   options: LabelDraft[];
   onChange: (options: LabelDraft[]) => void;
   errors: FieldErrors;
+  /** Saved options with votes: they can be renamed and moved, not removed. */
+  lockedIds?: ReadonlySet<string>;
   min?: number;
   max?: number;
 };
@@ -26,19 +29,22 @@ export function OptionListEditor({
   options,
   onChange,
   errors,
+  lockedIds,
   min = POLL_LIMITS.optionsMin,
   max = POLL_LIMITS.optionsMax,
 }: OptionListEditorProps) {
   const inputs = useRef(new Map<string, HTMLInputElement>());
+  /** Key of a row that should grab focus as soon as it's mounted (just added). */
+  const focusOnMount = useRef<string | null>(null);
   const canAdd = options.length < max;
 
-  const focusLater = (key: string) => requestAnimationFrame(() => inputs.current.get(key)?.focus());
+  const focusRow = (key: string) => inputs.current.get(key)?.focus();
 
   const add = () => {
     if (!canAdd) return;
     const draft = newLabelDraft();
+    focusOnMount.current = draft.key;
     onChange([...options, draft]);
-    focusLater(draft.key);
   };
 
   const update = (index: number, label: string) =>
@@ -52,7 +58,7 @@ export function OptionListEditor({
     const next = [...options];
     [next[index], next[target]] = [next[target], next[index]];
     onChange(next);
-    focusLater(options[index].key);
+    focusRow(options[index].key);
   };
 
   return (
@@ -61,6 +67,7 @@ export function OptionListEditor({
         {options.map((option, index) => {
           const rowErrors = errors[`options.${index}.label`];
           const errorId = `${option.key}-error`;
+          const locked = Boolean(option.id && lockedIds?.has(option.id));
           return (
             <li key={option.key} className="flex flex-col gap-1">
               <div className="flex items-center gap-1.5">
@@ -69,8 +76,15 @@ export function OptionListEditor({
                 </span>
                 <Input
                   ref={(node) => {
-                    if (node) inputs.current.set(option.key, node);
-                    else inputs.current.delete(option.key);
+                    if (!node) {
+                      inputs.current.delete(option.key);
+                      return;
+                    }
+                    inputs.current.set(option.key, node);
+                    if (focusOnMount.current === option.key) {
+                      focusOnMount.current = null;
+                      node.focus();
+                    }
                   }}
                   value={option.label}
                   onChange={(event) => update(index, event.target.value)}
@@ -78,7 +92,7 @@ export function OptionListEditor({
                     if (event.key === "Enter") {
                       event.preventDefault();
                       if (index === options.length - 1) add();
-                      else focusLater(options[index + 1].key);
+                      else focusRow(options[index + 1].key);
                     }
                   }}
                   placeholder={`Option ${index + 1}`}
@@ -113,8 +127,9 @@ export function OptionListEditor({
                   variant="ghost"
                   size="icon-lg"
                   onClick={() => remove(index)}
-                  disabled={options.length <= min}
-                  aria-label={`Remove option ${index + 1}`}
+                  disabled={locked || options.length <= min}
+                  aria-label={locked ? `Option ${index + 1} has votes and can't be removed` : `Remove option ${index + 1}`}
+                  title={locked ? "Has votes, so it can't be removed" : undefined}
                 >
                   <XIcon />
                 </Button>

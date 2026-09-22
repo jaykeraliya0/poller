@@ -35,7 +35,7 @@ export default async function NewPollPage({ searchParams }: PageProps<"/polls/ne
       </Link>
       <h1 className="mb-6 text-2xl font-semibold tracking-tight">{template.name}</h1>
       {/* Keyed so switching template via the URL starts a fresh draft. */}
-      <PollFormLoader key={template.id} template={template} />
+      <PollFormLoader key={template.id} mode="create" template={template} />
     </PageContainer>
   );
 }

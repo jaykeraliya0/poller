@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { requireOwner, requireUser } from "@/lib/auth/guards";
 import { ok, toActionFailure, type ActionFailure, type ActionResult } from "@/lib/errors";
-import { closePoll, createPoll, reopenPoll } from "@/lib/poll/service";
+import { closePoll, createPoll, deletePoll, reopenPoll, updatePoll } from "@/lib/poll/service";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 /** Creates a poll and redirects to its manage page; returns only on failure. */
@@ -50,4 +50,28 @@ export async function reopenPollAction(pollId: string): Promise<ActionResult> {
   } catch (error) {
     return toActionFailure(error);
   }
+}
+
+export async function updatePollAction(pollId: string, input: unknown): Promise<ActionResult<{ reopened: boolean }>> {
+  try {
+    const { poll } = await requireOwner(pollId);
+    const result = await updatePoll(poll.id, input);
+    revalidatePollPages(poll.id, poll.slug);
+    return ok({ reopened: result.reopened });
+  } catch (error) {
+    return toActionFailure(error);
+  }
+}
+
+/** Deletes the poll with all its votes, then goes back to the dashboard; returns only on failure. */
+export async function deletePollAction(pollId: string): Promise<ActionFailure> {
+  try {
+    const { poll } = await requireOwner(pollId);
+    await deletePoll(poll.id);
+    revalidatePollPages(poll.id, poll.slug);
+  } catch (error) {
+    unstable_rethrow(error);
+    return toActionFailure(error);
+  }
+  redirect("/dashboard?deleted=1");
 }

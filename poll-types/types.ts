@@ -3,8 +3,9 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { PollType } from "@/generated/prisma/enums";
 import type { InsightContext, InsightOption } from "@/lib/insights/types";
 
-/** An option ready to insert into poll_options. */
+/** An option ready to insert into poll_options; `id` is set when editing an existing one. */
 export type OptionRow = {
+  id?: string;
   label: string;
   position: number;
   startsAt: Date | null;
@@ -41,8 +42,10 @@ export interface PollTypeDefinition<Answers = unknown, Insights = unknown> {
   /** Maps stored answers back to the form shape so voters can edit their vote. */
   toAnswerInput(rows: AnswerRow[]): Answers;
   computeInsights(ctx: InsightContext): Insights;
-  /** One-line, human-readable version of a response, for tables and CSV. */
+  /** One-line, human-readable version of a response, for tables. */
   summarizeAnswers(rows: AnswerRow[], ctx: AnswerContext): string;
+  /** CSV cell for one option in one response (value is undefined when unanswered). */
+  csvValue(value: number | undefined): string;
 }
 
 export function definePollType<Answers, Insights>(

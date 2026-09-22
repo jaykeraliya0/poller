@@ -114,11 +114,16 @@ export async function castVote(input: unknown, identity: VoterIdentity, now: Dat
         return { updated: true, voterToken: identity.voterToken };
       }
 
-      const tokenTaken = await tx.pollResponse.findUnique({
+      // Only a vote by a *different account* on this browser (shared computer) earns a
+      // fresh token. Any other holder is this same voter racing themselves (double
+      // submit): keep the token so the insert hits the unique constraint and the
+      // retry below turns it into an update, instead of recording a second vote.
+      const holder = await tx.pollResponse.findUnique({
         where: { pollId_voterToken: { pollId: poll.id, voterToken: identity.voterToken } },
-        select: { id: true },
+        select: { userId: true },
       });
-      const voterToken = tokenTaken ? crypto.randomUUID() : identity.voterToken;
+      const takenByOtherAccount = holder?.userId != null && holder.userId !== identity.userId;
+      const voterToken = takenByOtherAccount ? crypto.randomUUID() : identity.voterToken;
       await tx.pollResponse.create({
         data: {
           pollId: poll.id,
