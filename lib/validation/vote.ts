@@ -8,5 +8,3 @@ export const voteEnvelopeSchema = z.object({
   voterName: optionalText(POLL_LIMITS.voterNameMax, "Name"),
   comment: optionalText(POLL_LIMITS.commentMax, "Comment"),
 });
-
-export type VoteEnvelopeInput = z.input<typeof voteEnvelopeSchema>;

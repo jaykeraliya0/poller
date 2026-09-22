@@ -38,7 +38,7 @@ export function ClosePollDialog({ pollId }: { pollId: string }) {
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger render={<Button variant="outline" size="lg" className="h-11" />}>
+      <AlertDialogTrigger render={<Button variant="outline" size="lg" />}>
         <LockIcon data-icon="inline-start" />
         Close poll
       </AlertDialogTrigger>
@@ -77,7 +77,7 @@ export function ReopenPollButton({ pollId }: { pollId: string }) {
     });
 
   return (
-    <Button variant="outline" size="lg" className="h-11" onClick={reopen} disabled={pending}>
+    <Button variant="outline" size="lg" onClick={reopen} disabled={pending}>
       {pending ? <Spinner data-icon="inline-start" /> : <LockOpenIcon data-icon="inline-start" />}
       Reopen
     </Button>

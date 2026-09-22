@@ -9,12 +9,16 @@ import type { AnswerSummaryProps, PollTypeVoteUI, VoteInputProps } from "../vote
 import { choiceConfigSchema, type ChoiceAnswers } from "./definition";
 
 const optionCard =
-  "flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-2xl border bg-card px-4 py-3 transition-colors has-data-checked:border-primary has-data-checked:bg-primary/5 has-data-disabled:cursor-not-allowed has-data-disabled:opacity-60";
+  "flex min-h-13 w-full cursor-pointer items-center gap-3 rounded-[10px] border bg-panel px-4 py-3 transition-[border-color,background-color,box-shadow] hover:border-input has-data-checked:border-signal has-data-checked:bg-signal-wash has-data-checked:shadow-[0_0_0_1px_var(--signal)] has-data-disabled:cursor-not-allowed has-data-disabled:opacity-60";
+
+function BallotHint({ children }: { children: React.ReactNode }) {
+  return <p className="mb-1 text-sm font-medium text-muted-foreground" aria-live="polite">{children}</p>;
+}
 
 function OptionText({ label, isNew }: { label: string; isNew: boolean }) {
   return (
     <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-      <span className="font-normal break-words">{label}</span>
+      <span className="text-[0.9375rem] font-medium break-words">{label}</span>
       {isNew && <NewOptionBadge />}
     </span>
   );
@@ -30,6 +34,7 @@ function ChoiceVoteInput({ config, options, value, onChange, errors, newOptionId
   if (!multi) {
     return (
       <div className="flex flex-col gap-2">
+        <BallotHint>Pick one.</BallotHint>
         <RadioGroup
           value={selected[0] ?? null}
           onValueChange={(optionId) => onChange({ optionIds: [optionId as string] })}
@@ -56,9 +61,7 @@ function ChoiceVoteInput({ config, options, value, onChange, errors, newOptionId
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm text-muted-foreground" aria-live="polite">
-        {maxSelections ? `Pick up to ${maxSelections}.` : "Pick as many as you like."}
-      </p>
+      <BallotHint>{maxSelections ? `Pick up to ${maxSelections}.` : "Pick as many as you like."}</BallotHint>
       <div role="group" aria-label="Options" className="flex flex-col gap-2">
         {options.map((option) => {
           const checked = selected.includes(option.id);
@@ -88,7 +91,7 @@ function ChoiceAnswerSummary({ options, rows }: AnswerSummaryProps) {
         .filter((option) => picked.has(option.id))
         .map((option) => (
           <li key={option.id} className="flex items-start gap-2">
-            <CheckIcon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+            <CheckIcon className="mt-0.5 size-4 shrink-0 text-signal" aria-hidden />
             <span className="break-words">{option.label}</span>
           </li>
         ))}

@@ -14,13 +14,13 @@ const dayLabel = (day: string) =>
 export function ResponsesTimeline({ timeline }: { timeline: { day: string; count: number }[] }) {
   const data = timeline.map((point) => ({ ...point, label: dayLabel(point.day) }));
   return (
-    <ChartContainer config={config} className="aspect-auto h-44 w-full">
+    <ChartContainer config={config} className="aspect-auto h-32 w-full">
       <BarChart data={data} margin={{ top: 8, right: 0, left: 0, bottom: 0 }} accessibilityLayer>
         <CartesianGrid vertical={false} stroke="var(--border)" />
         <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} minTickGap={16} />
-        <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={28} />
+        <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={24} />
         <ChartTooltip cursor={{ fill: "var(--muted)" }} content={<ChartTooltipContent hideIndicator />} />
-        <Bar dataKey="count" fill="var(--color-count)" radius={[4, 4, 0, 0]} maxBarSize={24} />
+        <Bar dataKey="count" fill="var(--color-count)" radius={[3, 3, 0, 0]} maxBarSize={18} />
       </BarChart>
     </ChartContainer>
   );

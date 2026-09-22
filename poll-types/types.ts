@@ -4,7 +4,7 @@ import type { PollType } from "@/generated/prisma/enums";
 import type { InsightContext, InsightOption } from "@/lib/insights/types";
 
 /** An option ready to insert into poll_options; `id` is set when editing an existing one. */
-export type OptionRow = {
+type OptionRow = {
   id?: string;
   label: string;
   position: number;
@@ -20,7 +20,7 @@ export type PollSetup = {
 
 export type AnswerRow = { optionId: string; value: number };
 
-export type AnswerContext = {
+type AnswerContext = {
   /** Raw polls.config as stored. */
   config: unknown;
   options: InsightOption[];

@@ -27,7 +27,7 @@ export function DeadlineCountdown({ closesAt, renderedAt }: DeadlineCountdownPro
   const closed = closesAt <= now;
   return (
     <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground" aria-live="polite">
-      <ClockIcon className="size-4" aria-hidden />
+      <ClockIcon className="size-3.5" aria-hidden />
       <time dateTime={closesAt.toISOString()} title={closesAt.toLocaleString()}>
         {closed ? "Voting has closed" : `Closes in ${formatDistanceStrict(closesAt, now)}`}
       </time>

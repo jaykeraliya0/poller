@@ -5,7 +5,7 @@ import type {
   InsightResponse,
 } from "@/lib/insights/types";
 
-export const NOW = new Date("2026-09-22T12:00:00Z");
+const NOW = new Date("2026-09-22T12:00:00Z");
 
 export function makePoll(overrides: Partial<InsightPoll> = {}): InsightPoll {
   return {

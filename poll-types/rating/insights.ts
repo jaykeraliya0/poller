@@ -30,7 +30,7 @@ export type RatingInsights = {
 const round1 = (value: number) => Math.round(value * 10) / 10;
 
 /** Minimum ratings before we'll call an option polarised. */
-export const MIN_RATINGS_FOR_POLARISATION = 4;
+const MIN_RATINGS_FOR_POLARISATION = 4;
 
 function median(sorted: number[]): number {
   const mid = Math.floor(sorted.length / 2);

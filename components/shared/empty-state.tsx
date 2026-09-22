@@ -12,9 +12,9 @@ type EmptyStateProps = {
 
 export function EmptyState({ icon: Icon, title, description, children, level = 2 }: EmptyStateProps) {
   return (
-    <Empty className="border">
+    <Empty className="border bg-panel">
       <EmptyHeader>
-        <EmptyMedia variant="icon">
+        <EmptyMedia variant="icon" className="size-11 rounded-[12px] bg-signal-wash text-signal [&_svg:not([class*='size-'])]:size-5">
           <Icon aria-hidden />
         </EmptyMedia>
         <EmptyTitle role="heading" aria-level={level}>
@@ -22,7 +22,7 @@ export function EmptyState({ icon: Icon, title, description, children, level = 2
         </EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>
       </EmptyHeader>
-      {children && <EmptyContent>{children}</EmptyContent>}
+      {children && <EmptyContent className="max-w-md">{children}</EmptyContent>}
     </Empty>
   );
 }

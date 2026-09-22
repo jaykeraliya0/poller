@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const PASSWORD_MIN = 8;
-export const PASSWORD_MAX = 128;
+const PASSWORD_MAX = 128;
 
 const email = z
   .string()
@@ -26,6 +26,3 @@ export const registerSchema = z.object({
     .min(PASSWORD_MIN, `Use at least ${PASSWORD_MIN} characters`)
     .max(PASSWORD_MAX, `Use at most ${PASSWORD_MAX} characters`),
 });
-
-export type LoginInput = z.input<typeof loginSchema>;
-export type RegisterInput = z.input<typeof registerSchema>;

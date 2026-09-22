@@ -22,7 +22,7 @@ function RankingConfigFields({ config, onConfigChange, errors, configLocked }: T
           min={1}
           placeholder="All"
           disabled={configLocked}
-          className="h-11 w-32"
+          className="max-w-32"
           value={rankTop ?? ""}
           onChange={(event) => onConfigChange({ rankTop: event.target.value === "" ? null : Number(event.target.value) })}
         />

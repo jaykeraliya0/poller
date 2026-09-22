@@ -179,7 +179,7 @@ erDiagram
 app/                     Routes (Server Components by default)
   (auth)/                login, register
   (app)/                 dashboard, polls/new, polls/[id]/{manage,edit}, settings
-  p/[slug]/              vote page and /results
+  (site)/                landing page, p/[slug] vote page and /results
   api/polls/[id]/export  CSV route handler (the only API route besides Auth.js)
 actions/                 Server Actions: thin wrappers returning ActionResult
 lib/
@@ -209,7 +209,7 @@ Each type is one folder under `poll-types/`, plugged into four registries that a
 
 ## Testing
 
-**~260 tests** across three layers: unit/component (Vitest + Testing Library), integration against a real Postgres and Redis, and end-to-end with Playwright on a mobile viewport.
+**~280 tests** across three layers: unit/component (Vitest + Testing Library), integration against a real Postgres and Redis, and end-to-end with Playwright on a mobile viewport.
 
 | Layer | What it covers |
 |---|---|
@@ -217,7 +217,7 @@ Each type is one folder under `poll-types/`, plugged into four registries that a
 | **Integration** (`tests/integration`) | DB constraints, auth and guards, rate limiter incl. fail-open, create/edit/vote/withdraw/close services and actions, concurrency (double submit), account deletion cascade, CSV route |
 | **E2E** (`tests/e2e`) | sign-up/in/out, create from templates, guest voting/changing/withdrawing, every poll type, the organiser journey with live updates, editing after votes, CSV/delete/account deletion, edge cases below, **axe WCAG 2.2 AA scans in light and dark mode**, security headers, skip link |
 
-E2E runs build the app and start it on port 3100 against `DATABASE_URL_TEST`. Each test gets its own `x-forwarded-for` IP so rate limits never leak between tests.
+E2E runs build the app and start it on port 3100 against `DATABASE_URL_TEST`. Each test gets its own `x-forwarded-for` IP so rate limits never leak between tests. The shared fixture in `tests/e2e/helpers.ts` skips Next's background link prefetches and closes every extra voter browser once its pages are idle, so runs stay free of aborted-response noise in the server log.
 
 > **WebKit:** the iPhone 14 project needs WebKit's system libraries. On Ubuntu/macOS/CI run `pnpm test:e2e:all`; on distros Playwright doesn't support (e.g. Arch) WebKit can't launch, so `pnpm test:e2e` runs mobile + desktop Chrome.
 

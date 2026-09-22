@@ -5,8 +5,8 @@ import { CheckIcon, CopyIcon, ExternalLinkIcon, Share2Icon } from "lucide-react"
 import { toast } from "sonner";
 import { ButtonLink } from "@/components/shared/button-link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
+import { cn } from "@/lib/utils";
 
 const subscribeNoop = () => () => {};
 
@@ -19,9 +19,9 @@ function useCanShare() {
   );
 }
 
-type SharePanelProps = { url: string; title: string };
+type SharePanelProps = { url: string; title: string; className?: string };
 
-export function SharePanel({ url, title }: SharePanelProps) {
+export function SharePanel({ url, title, className }: SharePanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const { copied, copy } = useCopyToClipboard();
   const canShare = useCanShare();
@@ -45,29 +45,29 @@ export function SharePanel({ url, title }: SharePanelProps) {
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex gap-2">
-        <Input
+    <div className={cn("flex flex-col gap-2.5", className)}>
+      <div className="flex h-11 items-center gap-1 rounded-[10px] border border-input bg-panel p-1 pl-3 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20">
+        <input
           ref={inputRef}
           readOnly
           value={url}
           aria-label="Poll link"
           onFocus={(event) => event.currentTarget.select()}
-          className="h-11 font-mono text-sm"
+          className="min-w-0 flex-1 bg-transparent font-mono text-[0.8125rem] text-foreground outline-none"
         />
-        <Button type="button" variant="outline" size="lg" onClick={onCopy} className="h-11 shrink-0">
+        <Button type="button" size="sm" onClick={onCopy} className="h-8 shrink-0 px-3">
           {copied ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
           {copied ? "Copied" : "Copy"}
         </Button>
       </div>
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="flex flex-wrap gap-2">
         {canShare && (
-          <Button type="button" size="lg" onClick={onShare} className="h-11 sm:flex-1">
+          <Button type="button" variant="outline" size="sm" onClick={onShare} className="h-8">
             <Share2Icon data-icon="inline-start" />
             Share
           </Button>
         )}
-        <ButtonLink href={url} target="_blank" variant="outline" size="lg" className="h-11 sm:flex-1">
+        <ButtonLink href={url} target="_blank" variant="ghost" size="sm" className="h-8 text-muted-foreground">
           <ExternalLinkIcon data-icon="inline-start" aria-hidden />
           Open voting page
         </ButtonLink>

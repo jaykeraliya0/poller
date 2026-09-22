@@ -3,7 +3,7 @@ import { decideOutcome, formatList, type Outcome, type Scored } from "@/lib/insi
 import type { InsightContext } from "@/lib/insights/types";
 import type { AvailabilityConfig } from "./definition";
 
-export type SlotResult = Scored & {
+type SlotResult = Scored & {
   startsAt: Date;
   endsAt: Date;
   /** "Fri 6pm" in the poll's time zone. */

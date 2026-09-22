@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { ExternalLinkIcon, PencilIcon } from "lucide-react";
-import { PageContainer } from "@/components/layout/page-container";
+import { AppPage } from "@/components/layout/app-page";
 import { BackLink } from "@/components/shared/back-link";
 import { AutoRefresh } from "@/components/insights/auto-refresh";
-import { PollResults } from "@/components/insights/poll-results";
+import { BoardSection, PollResults } from "@/components/insights/poll-results";
 import { PollHeader } from "@/components/poll/poll-header";
 import { PollMoreMenu } from "@/components/poll/poll-more-menu";
 import { ClosePollDialog, ReopenPollButton } from "@/components/poll/poll-status-controls";
@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { loadPollResults } from "@/lib/poll/results";
 import { canReopen, isPollOpen } from "@/lib/poll/status";
 import { pollShareUrl } from "@/lib/urls";
+import { getPollType } from "@/poll-types/registry";
 
 export const metadata: Metadata = { title: "Manage poll", robots: { index: false } };
 
@@ -32,27 +33,33 @@ export default async function ManagePollPage({ params, searchParams }: PageProps
   const shareUrl = pollShareUrl(poll.slug);
 
   return (
-    <PageContainer className="flex flex-col gap-6 py-6">
+    <AppPage>
       <div className="flex items-center justify-between gap-3">
         <BackLink href="/dashboard">My polls</BackLink>
         {open && <AutoRefresh />}
       </div>
 
-      <PollHeader poll={poll} isOwner={false} now={now} />
-
-      <div className="flex flex-wrap gap-2">
-        <ShareSheet url={shareUrl} title={poll.title} defaultOpen={created === "1"} />
-        {open ? <ClosePollDialog pollId={poll.id} /> : canReopen(poll, now) && <ReopenPollButton pollId={poll.id} />}
-        <ButtonLink href={`/polls/${poll.id}/edit`} variant="outline" size="lg" className="h-11">
-          <PencilIcon data-icon="inline-start" aria-hidden />
-          Edit
-        </ButtonLink>
-        <ButtonLink href={`/p/${poll.slug}/results`} variant="ghost" size="lg" className="h-11">
-          <ExternalLinkIcon data-icon="inline-start" aria-hidden />
-          Voter view
-        </ButtonLink>
-        <PollMoreMenu pollId={poll.id} title={poll.title} responseCount={insights.common.totalResponses} />
-      </div>
+      <PollHeader
+        poll={poll}
+        isOwner={false}
+        now={now}
+        meta={<span className="text-sm text-muted-foreground">{getPollType(poll.type).label}</span>}
+        actions={
+          <>
+            <ShareSheet url={shareUrl} title={poll.title} defaultOpen={created === "1"} />
+            {open ? <ClosePollDialog pollId={poll.id} /> : canReopen(poll, now) && <ReopenPollButton pollId={poll.id} />}
+            <ButtonLink href={`/polls/${poll.id}/edit`} variant="outline" size="lg">
+              <PencilIcon data-icon="inline-start" aria-hidden />
+              Edit
+            </ButtonLink>
+            <ButtonLink href={`/p/${poll.slug}/results`} variant="outline" size="lg">
+              <ExternalLinkIcon data-icon="inline-start" aria-hidden />
+              Voter view
+            </ButtonLink>
+            <PollMoreMenu pollId={poll.id} title={poll.title} responseCount={insights.common.totalResponses} />
+          </>
+        }
+      />
 
       <PollResults
         poll={poll}
@@ -62,11 +69,18 @@ export default async function ManagePollPage({ params, searchParams }: PageProps
         showNames={!poll.isAnonymous}
         now={now}
         emptyAction={
-          <div className="w-full max-w-md text-left">
+          <div className="w-full text-left">
             <SharePanel url={shareUrl} title={poll.title} />
           </div>
         }
+        rail={
+          open && (
+            <BoardSection id="share-heading" title="Share link" description="Anyone with the link can vote.">
+              <SharePanel url={shareUrl} title={poll.title} />
+            </BoardSection>
+          )
+        }
       />
-    </PageContainer>
+    </AppPage>
   );
 }

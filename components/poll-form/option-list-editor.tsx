@@ -63,15 +63,18 @@ export function OptionListEditor({
 
   return (
     <div className="flex flex-col gap-3">
-      <ol className="flex flex-col gap-3" aria-label="Options">
+      <ol className="flex flex-col gap-2" aria-label="Options">
         {options.map((option, index) => {
           const rowErrors = errors[`options.${index}.label`];
           const errorId = `${option.key}-error`;
           const locked = Boolean(option.id && lockedIds?.has(option.id));
           return (
             <li key={option.key} className="flex flex-col gap-1">
-              <div className="flex items-center gap-1.5">
-                <span className="hidden w-6 shrink-0 text-center text-sm text-muted-foreground tabular-nums sm:block" aria-hidden>
+              <div className="flex items-center gap-1">
+                <span
+                  className="font-display mr-1 hidden size-8 shrink-0 items-center justify-center rounded-[8px] bg-muted text-sm font-bold text-muted-foreground tabular-nums sm:flex"
+                  aria-hidden
+                >
                   {index + 1}
                 </span>
                 <Input
@@ -100,13 +103,13 @@ export function OptionListEditor({
                   aria-invalid={rowErrors ? true : undefined}
                   aria-describedby={rowErrors ? errorId : undefined}
                   maxLength={POLL_LIMITS.optionLabelMax}
-                  className="h-11"
+                  className="mr-1"
                 />
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-lg"
-                  className="size-10"
+                  size="icon"
+                  className="size-9 text-muted-foreground"
                   onClick={() => move(index, -1)}
                   disabled={index === 0}
                   aria-label={`Move option ${index + 1} up`}
@@ -116,8 +119,8 @@ export function OptionListEditor({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-lg"
-                  className="size-10"
+                  size="icon"
+                  className="size-9 text-muted-foreground"
                   onClick={() => move(index, 1)}
                   disabled={index === options.length - 1}
                   aria-label={`Move option ${index + 1} down`}
@@ -127,8 +130,8 @@ export function OptionListEditor({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-lg"
-                  className="size-10"
+                  size="icon"
+                  className="size-9 text-muted-foreground"
                   onClick={() => remove(index)}
                   disabled={locked || options.length <= min}
                   aria-label={locked ? `Option ${index + 1} has votes and can't be removed` : `Remove option ${index + 1}`}
@@ -137,7 +140,7 @@ export function OptionListEditor({
                   <XIcon />
                 </Button>
               </div>
-              <FieldError id={errorId} className="sm:pl-7.5" errors={rowErrors?.map((message) => ({ message }))} />
+              <FieldError id={errorId} className="sm:pl-10" errors={rowErrors?.map((message) => ({ message }))} />
             </li>
           );
         })}
@@ -146,7 +149,7 @@ export function OptionListEditor({
       <FieldError errors={errors.options?.map((message) => ({ message }))} />
 
       <div className="flex items-center justify-between gap-3">
-        <Button type="button" variant="outline" size="lg" onClick={add} disabled={!canAdd} className="h-11">
+        <Button type="button" variant="outline" size="lg" onClick={add} disabled={!canAdd}>
           <PlusIcon data-icon="inline-start" />
           Add option
         </Button>

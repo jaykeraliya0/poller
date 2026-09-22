@@ -33,7 +33,7 @@ function RatingConfigFields({ config, onConfigChange, errors, configLocked }: Ty
             {...control}
             disabled={configLocked}
             maxLength={30}
-            className="h-11"
+            
             value={current.lowLabel}
             onChange={(event) => set({ lowLabel: event.target.value })}
           />
@@ -45,7 +45,7 @@ function RatingConfigFields({ config, onConfigChange, errors, configLocked }: Ty
             {...control}
             disabled={configLocked}
             maxLength={30}
-            className="h-11"
+            
             value={current.highLabel}
             onChange={(event) => set({ highLabel: event.target.value })}
           />

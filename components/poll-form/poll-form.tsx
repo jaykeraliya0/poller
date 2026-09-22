@@ -11,6 +11,7 @@ import { FormAlert } from "@/components/shared/form-alert";
 import { STICKY_BAR_PADDING, StickyActionBar } from "@/components/shared/sticky-action-bar";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { BallotPreview } from "./ballot-preview";
 import type { PollTemplate, PollType, ResultsVisibility } from "@/generated/prisma/enums";
 import type { ActionFailure, FieldErrors } from "@/lib/errors";
 import { parsePollSubmission, type PollSubmission } from "@/lib/poll/submission";
@@ -197,58 +198,77 @@ export function PollForm(props: PollFormProps) {
   };
 
   return (
-    <form ref={formRef} onSubmit={onSubmit} noValidate className={cn("flex flex-col gap-4", STICKY_BAR_PADDING)}>
-      <FormAlert message={formMessage} />
+    <form
+      ref={formRef}
+      onSubmit={onSubmit}
+      noValidate
+      className={cn("grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-6", STICKY_BAR_PADDING)}
+    >
+      <div className="flex min-w-0 flex-col gap-4">
+        <FormAlert message={formMessage} />
 
-      <FormSection title="Question">
-        <TextField
-          label="Title"
-          value={draft.title}
-          onChange={(event) => update({ title: event.target.value })}
-          errors={errors.title}
-          placeholder="e.g. Where should we go for lunch?"
-          maxLength={POLL_LIMITS.titleMax}
-          autoFocus={!draft.title}
-        />
-        <TextareaField
-          label="Description (optional)"
-          value={draft.description}
-          onChange={(event) => update({ description: event.target.value })}
-          errors={errors.description}
-          placeholder="Any context voters should know"
-          maxLength={POLL_LIMITS.descriptionMax}
-        />
-        {props.mode === "create" && props.template.id === "CUSTOM" && (
-          <TypePicker value={draft.type} onChange={changeType} errors={errors.type} />
-        )}
-      </FormSection>
+        <FormSection title="Question">
+          <TextField
+            label="Title"
+            value={draft.title}
+            onChange={(event) => update({ title: event.target.value })}
+            errors={errors.title}
+            placeholder="e.g. Where should we go for lunch?"
+            maxLength={POLL_LIMITS.titleMax}
+            autoFocus={!draft.title}
+            className="h-11 text-base font-medium"
+          />
+          <TextareaField
+            label="Description (optional)"
+            value={draft.description}
+            onChange={(event) => update({ description: event.target.value })}
+            errors={errors.description}
+            placeholder="Any context voters should know"
+            maxLength={POLL_LIMITS.descriptionMax}
+          />
+          {props.mode === "create" && props.template.id === "CUSTOM" && (
+            <TypePicker value={draft.type} onChange={changeType} errors={errors.type} />
+          )}
+        </FormSection>
 
-      <FormSection title={editor.sectionTitle} description={editor.sectionDescription}>
-        {editor.ConfigFields && <editor.ConfigFields {...editorProps} />}
-        <editor.OptionsEditor {...editorProps} />
-        <FormAlert message={errors.config?.[0]} />
-      </FormSection>
+        <FormSection title={editor.sectionTitle} description={editor.sectionDescription}>
+          {editor.ConfigFields && <editor.ConfigFields {...editorProps} />}
+          <editor.OptionsEditor {...editorProps} />
+          <FormAlert message={errors.config?.[0]} />
+        </FormSection>
 
-      <FormSection title="Settings" description={editing ? undefined : "Sensible defaults are already set."}>
-        <SettingsPanel
-          value={draft.settings}
-          onChange={(settings) => update({ settings })}
-          errors={errors}
-          anonymityLocked={hasVotes}
-        />
-      </FormSection>
+        <FormSection title="Settings" description={editing ? undefined : "Sensible defaults are already set."}>
+          <SettingsPanel
+            value={draft.settings}
+            onChange={(settings) => update({ settings })}
+            errors={errors}
+            anonymityLocked={hasVotes}
+          />
+        </FormSection>
+      </div>
 
-      <StickyActionBar className="flex flex-col gap-2 sm:flex-row">
-        <Button type="submit" size="lg" disabled={pending} className="h-11 w-full sm:w-auto sm:min-w-40">
-          {pending && <Spinner data-icon="inline-start" />}
-          {editing ? (pending ? "Saving…" : "Save changes") : pending ? "Creating…" : "Create poll"}
-        </Button>
-        {editing && (
-          <ButtonLink href={`/polls/${editing.id}/manage`} variant="ghost" size="lg" className="h-11">
-            Cancel
-          </ButtonLink>
-        )}
-      </StickyActionBar>
+      <aside className="flex flex-col gap-4 lg:sticky lg:top-8">
+        <div className="hidden lg:block">
+          <BallotPreview
+            type={draft.type}
+            title={draft.title}
+            description={draft.description}
+            config={submission.config}
+            options={submission.options}
+          />
+        </div>
+        <StickyActionBar className="flex flex-col gap-2 sm:flex-row sm:border-t-0 lg:flex-col">
+          <Button type="submit" size="lg" disabled={pending} className="h-11 w-full text-[0.9375rem] sm:w-auto sm:min-w-44 lg:w-full">
+            {pending && <Spinner data-icon="inline-start" />}
+            {editing ? (pending ? "Saving…" : "Save changes") : pending ? "Creating…" : "Create poll"}
+          </Button>
+          {editing && (
+            <ButtonLink href={`/polls/${editing.id}/manage`} variant="ghost" size="lg" className="h-11">
+              Cancel
+            </ButtonLink>
+          )}
+        </StickyActionBar>
+      </aside>
     </form>
   );
 }

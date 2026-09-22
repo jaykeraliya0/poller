@@ -1,4 +1,3 @@
-import { devices } from "@playwright/test";
 import { createChoicePoll, expect, newVoterPage, readShareLink, register, test, uniqueEmail } from "./helpers";
 
 const password = "correct horse battery";
@@ -36,12 +35,7 @@ test("a voter in another time zone sees their local time next to each slot", asy
   await page.getByRole("button", { name: "Create poll" }).click();
   const pollPath = await readShareLink(page);
 
-  const context = await browser.newContext({
-    ...devices["Pixel 7"],
-    timezoneId: "America/New_York",
-    baseURL: test.info().project.use.baseURL,
-  });
-  const voter = await context.newPage();
+  const voter = await newVoterPage(browser, { timezoneId: "America/New_York" });
   await voter.goto(pollPath);
   await expect(voter.getByText("Times are in Europe/London.")).toBeVisible();
   // 6pm London is 1pm in New York (both on daylight or both on standard time).

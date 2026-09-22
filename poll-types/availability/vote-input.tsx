@@ -15,9 +15,10 @@ type Choice = { value: AvailabilityValue; label: string; icon: LucideIcon; check
 
 // Text and icon on every choice, so colour is never the only signal.
 const CHOICES: Choice[] = [
-  { value: 2, label: "Yes", icon: CheckIcon, checkedClass: "data-checked:bg-emerald-600 data-checked:text-white" },
-  { value: 1, label: "If need be", icon: MinusIcon, checkedClass: "data-checked:bg-amber-500 data-checked:text-white" },
-  { value: 0, label: "No", icon: XIcon, checkedClass: "data-checked:bg-muted-foreground data-checked:text-background" },
+  // Same encoding as the results: yes = signal, if need be = soft signal.
+  { value: 2, label: "Yes", icon: CheckIcon, checkedClass: "data-checked:bg-signal data-checked:text-primary-foreground data-checked:shadow-sm" },
+  { value: 1, label: "If need be", icon: MinusIcon, checkedClass: "data-checked:bg-viz-accent-soft data-checked:text-foreground data-checked:shadow-sm" },
+  { value: 0, label: "No", icon: XIcon, checkedClass: "data-checked:bg-foreground data-checked:text-background data-checked:shadow-sm" },
 ];
 
 const timeRange = (option: VoteOption, timeZone: string) =>
@@ -62,50 +63,52 @@ function AvailabilityVoteInput({ config, options, value, onChange, errors, newOp
 
   return (
     <div className="flex flex-col gap-5">
-      <p className="text-sm text-muted-foreground">Times are in {timezone.replaceAll("_", " ")}.</p>
+      <p className="text-sm font-medium text-muted-foreground">Times are in {timezone.replaceAll("_", " ")}.</p>
       {days.map((day) => (
-        <section key={day.key} aria-labelledby={`day-${day.key}`} className="flex flex-col gap-2">
-          <h3 id={`day-${day.key}`} className="text-sm font-medium">
+        <section key={day.key} aria-labelledby={`day-${day.key}`} className="grid gap-2 @2xl:grid-cols-[7rem_minmax(0,1fr)] @2xl:gap-4">
+          <h3 id={`day-${day.key}`} className="font-display text-[0.95rem] font-semibold @2xl:pt-3">
             {day.label}
           </h3>
-          {day.slots.map((option) => {
-            const slotLabel = `${day.label}, ${timeRange(option, timezone)}`;
-            const unanswered = error && answers[option.id] === undefined;
-            return (
-              <div
-                key={option.id}
-                data-invalid={unanswered ? "" : undefined}
-                className="flex flex-col gap-2 rounded-2xl border bg-card p-3 data-invalid:border-destructive/60 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start sm:gap-0.5">
-                  <span className="font-medium tabular-nums">{timeRange(option, timezone)}</span>
-                  <LocalTime option={option} pollTimeZone={timezone} />
-                  {newOptionIds.has(option.id) && <NewOptionBadge />}
-                </div>
-                <RadioGroup
-                  aria-label={slotLabel}
-                  value={answers[option.id] ?? null}
-                  onValueChange={(next) => set(option.id, next as AvailabilityValue)}
-                  disabled={disabled}
-                  className="grid grid-cols-3 gap-1 rounded-2xl bg-muted p-1 sm:w-80"
+          <div className="flex flex-col gap-2">
+            {day.slots.map((option) => {
+              const slotLabel = `${day.label}, ${timeRange(option, timezone)}`;
+              const unanswered = error && answers[option.id] === undefined;
+              return (
+                <div
+                  key={option.id}
+                  data-invalid={unanswered ? "" : undefined}
+                  className="flex flex-col gap-2 rounded-[10px] border bg-panel p-2 pl-3.5 data-invalid:border-destructive/60 data-invalid:bg-destructive/5 @lg:flex-row @lg:items-center @lg:justify-between"
                 >
-                  {CHOICES.map((choice) => (
-                    <Radio.Root
-                      key={choice.value}
-                      value={choice.value}
-                      className={cn(
-                        "flex h-10 items-center justify-center gap-1 rounded-xl px-2 text-sm font-medium text-muted-foreground transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/40 data-disabled:opacity-60",
-                        choice.checkedClass,
-                      )}
-                    >
-                      <choice.icon className="size-4 shrink-0" aria-hidden />
-                      <span className="truncate">{choice.label}</span>
-                    </Radio.Root>
-                  ))}
-                </RadioGroup>
-              </div>
-            );
-          })}
+                  <div className="flex min-w-0 items-center justify-between gap-2 pt-1 @lg:flex-col @lg:items-start @lg:gap-0 @lg:pt-0">
+                    <span className="font-medium tabular-nums">{timeRange(option, timezone)}</span>
+                    <LocalTime option={option} pollTimeZone={timezone} />
+                    {newOptionIds.has(option.id) && <NewOptionBadge />}
+                  </div>
+                  <RadioGroup
+                    aria-label={slotLabel}
+                    value={answers[option.id] ?? null}
+                    onValueChange={(next) => set(option.id, next as AvailabilityValue)}
+                    disabled={disabled}
+                    className="grid shrink-0 grid-cols-[1fr_1.35fr_1fr] gap-1 rounded-[9px] bg-muted p-1 @lg:w-[21.5rem]"
+                  >
+                    {CHOICES.map((choice) => (
+                      <Radio.Root
+                        key={choice.value}
+                        value={choice.value}
+                        className={cn(
+                          "flex h-9 items-center justify-center gap-1 rounded-[7px] px-1.5 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 data-disabled:opacity-60",
+                          choice.checkedClass,
+                        )}
+                      >
+                        <choice.icon className="size-4 shrink-0" aria-hidden />
+                        <span className="truncate">{choice.label}</span>
+                      </Radio.Root>
+                    ))}
+                  </RadioGroup>
+                </div>
+              );
+            })}
+          </div>
         </section>
       ))}
       <FieldError errors={error?.map((message) => ({ message }))} />

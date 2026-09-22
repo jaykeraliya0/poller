@@ -15,9 +15,12 @@ export function TypePicker({ value, onChange, errors }: TypePickerProps) {
   return (
     <FieldSet>
       <FieldLegend variant="label">Poll type</FieldLegend>
-      <RadioGroup value={value} onValueChange={(next) => onChange(next as PollType)} className="sm:grid-cols-2">
+      <RadioGroup value={value} onValueChange={(next) => onChange(next as PollType)} className="gap-2 sm:grid-cols-2">
         {supportedPollTypes.map((pollType) => (
-          <FieldLabel key={pollType.type} htmlFor={`type-${pollType.type}`}>
+          <FieldLabel
+            key={pollType.type}
+            htmlFor={`type-${pollType.type}`}
+          >
             <Field orientation="horizontal">
               <FieldContent>
                 <span className="font-medium">{pollType.label}</span>

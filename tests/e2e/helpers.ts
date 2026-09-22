@@ -1,14 +1,47 @@
-import { test as base, devices, expect, type Browser, type Page } from "@playwright/test";
+import { test as base, devices, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
+
+/** Extra browsers opened by the current test (other voters); closed when it ends. */
+const voterContexts: BrowserContext[] = [];
+
+/**
+ * Skips Next's background link prefetches. They only speed up navigation, and
+ * a test moving on mid-prefetch makes the server log "destination stream
+ * closed early". Real navigations still fetch every page as usual.
+ */
+async function skipPrefetches(context: BrowserContext) {
+  await context.route("**/*", (route) =>
+    route.request().headers()["next-router-prefetch"] ? route.abort() : route.fallback(),
+  );
+}
+
+/** Waits for a page's in-flight requests, so closing it never aborts a response mid-stream. */
+async function settle(page: Page) {
+  await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
+}
 
 /**
  * Each test gets its own client IP so rate limits (which trust
  * x-forwarded-for) never leak between tests or reruns.
  */
-export const test = base.extend({
+export const test = base.extend<{ closeVoters: void }>({
   extraHTTPHeaders: async ({}, provide) => {
     const octet = () => Math.floor(Math.random() * 254) + 1;
     await provide({ "x-forwarded-for": `10.${octet()}.${octet()}.${octet()}` });
   },
+  context: async ({ context }, provide) => {
+    await skipPrefetches(context);
+    await provide(context);
+  },
+  // Lets every page finish loading before teardown, so no response is cut off.
+  closeVoters: [
+    async ({ page }, use) => {
+      await use();
+      const contexts = voterContexts.splice(0);
+      await Promise.all([page, ...contexts.flatMap((context) => context.pages())].map(settle));
+      await Promise.all(contexts.map((context) => context.close()));
+    },
+    { auto: true },
+  ],
 });
 
 export { expect };
@@ -36,14 +69,16 @@ export async function register(page: Page, account: Account) {
 const randomIp = () => `10.${[0, 0, 0].map(() => Math.floor(Math.random() * 254) + 1).join(".")}`;
 
 /** A separate phone browser with its own cookies and IP, i.e. another voter. */
-export async function newVoterPage(browser: Browser): Promise<Page> {
+export async function newVoterPage(browser: Browser, { timezoneId = "Europe/London" } = {}): Promise<Page> {
   const context = await browser.newContext({
     ...devices["Pixel 7"],
-    // Pinned so slot times read the same as in the organiser's context.
-    timezoneId: "Europe/London",
+    // Pinned by default so slot times read the same as in the organiser's context.
+    timezoneId,
     baseURL: test.info().project.use.baseURL,
     extraHTTPHeaders: { "x-forwarded-for": randomIp() },
   });
+  await skipPrefetches(context);
+  voterContexts.push(context);
   return context.newPage();
 }
 

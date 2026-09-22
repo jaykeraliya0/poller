@@ -1,21 +1,14 @@
-import { SearchXIcon } from "lucide-react";
-import { PageContainer } from "@/components/layout/page-container";
-import { ButtonLink } from "@/components/shared/button-link";
-import { EmptyState } from "@/components/shared/empty-state";
+import { SiteHeader } from "@/components/layout/site-header";
+import { NotFoundContent } from "@/components/shared/not-found-content";
 
+/** Unknown URLs render outside every route group, so this brings its own chrome. */
 export default function NotFound() {
   return (
-    <PageContainer className="flex flex-1 items-center py-12">
-      <EmptyState
-        icon={SearchXIcon}
-        title="Page not found"
-        level={1}
-        description="This poll may have been deleted, or the link is mistyped."
-      >
-        <ButtonLink href="/" size="lg" className="h-11">
-          Go home
-        </ButtonLink>
-      </EmptyState>
-    </PageContainer>
+    <>
+      <SiteHeader />
+      <main id="main" tabIndex={-1} className="flex flex-1 flex-col outline-none">
+        <NotFoundContent />
+      </main>
+    </>
   );
 }

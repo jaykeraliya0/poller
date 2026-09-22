@@ -11,7 +11,7 @@ export type InsightOption = Pick<
   "id" | "label" | "position" | "startsAt" | "endsAt" | "createdAt"
 >;
 
-export type InsightAnswer = { optionId: string; value: number };
+type InsightAnswer = { optionId: string; value: number };
 
 export type InsightResponse = {
   id: string;

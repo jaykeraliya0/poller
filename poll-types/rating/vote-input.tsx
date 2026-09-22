@@ -16,48 +16,55 @@ function RatingVoteInput({ config, options, value, onChange, errors, newOptionId
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm font-medium text-muted-foreground">
         Rate each option from 1 ({lowLabel}) to {scale} ({highLabel}).
       </p>
-      {options.map((option) => {
-        const missing = error && ratings[option.id] === undefined;
-        return (
-          <div
-            key={option.id}
-            data-invalid={missing ? "" : undefined}
-            className="flex flex-col gap-3 rounded-2xl border bg-card p-3 data-invalid:border-destructive/60"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <span className="font-medium break-words" id={`rate-${option.id}`}>
-                {option.label}
-              </span>
-              {newOptionIds.has(option.id) && <NewOptionBadge />}
-            </div>
-            <RadioGroup
-              aria-labelledby={`rate-${option.id}`}
-              value={ratings[option.id] ?? null}
-              onValueChange={(next) => onChange({ ratings: { ...ratings, [option.id]: next as number } })}
-              disabled={disabled}
-              className={cn("grid gap-1 rounded-2xl bg-muted p-1", scale === 5 ? "grid-cols-5" : "grid-cols-5 sm:grid-cols-10")}
+      <div className="flex flex-col gap-2">
+        {options.map((option) => {
+          const missing = error && ratings[option.id] === undefined;
+          return (
+            <div
+              key={option.id}
+              data-invalid={missing ? "" : undefined}
+              className="grid gap-2.5 rounded-[10px] border bg-panel p-2 pl-3.5 data-invalid:border-destructive/60 data-invalid:bg-destructive/5 @xl:grid-cols-[minmax(0,1fr)_auto] @xl:items-center @xl:gap-4"
             >
-              {scores.map((score) => (
-                <Radio.Root
-                  key={score}
-                  value={score}
-                  aria-label={`${score}${score === 1 ? `, ${lowLabel}` : score === scale ? `, ${highLabel}` : ""}`}
-                  className="flex h-10 items-center justify-center rounded-xl text-sm font-medium text-muted-foreground tabular-nums outline-none focus-visible:ring-3 focus-visible:ring-ring/40 data-checked:bg-primary data-checked:text-primary-foreground data-disabled:opacity-60"
+              <div className="flex items-start justify-between gap-2 pt-1 @xl:pt-0">
+                <span className="font-medium break-words" id={`rate-${option.id}`}>
+                  {option.label}
+                </span>
+                {newOptionIds.has(option.id) && <NewOptionBadge />}
+              </div>
+              <div className="flex flex-col gap-1">
+                <RadioGroup
+                  aria-labelledby={`rate-${option.id}`}
+                  value={ratings[option.id] ?? null}
+                  onValueChange={(next) => onChange({ ratings: { ...ratings, [option.id]: next as number } })}
+                  disabled={disabled}
+                  className={cn(
+                    "grid gap-1 rounded-[9px] bg-muted p-1",
+                    scale === 5 ? "grid-cols-5 @xl:w-64" : "grid-cols-5 @md:grid-cols-10 @xl:w-[26rem]",
+                  )}
                 >
-                  {score}
-                </Radio.Root>
-              ))}
-            </RadioGroup>
-            <div className="flex justify-between text-xs text-muted-foreground" aria-hidden>
-              <span>{lowLabel}</span>
-              <span>{highLabel}</span>
+                  {scores.map((score) => (
+                    <Radio.Root
+                      key={score}
+                      value={score}
+                      aria-label={`${score}${score === 1 ? `, ${lowLabel}` : score === scale ? `, ${highLabel}` : ""}`}
+                      className="flex h-9 items-center justify-center rounded-[7px] text-sm font-semibold text-muted-foreground tabular-nums transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 data-checked:bg-signal data-checked:text-primary-foreground data-checked:shadow-sm data-disabled:opacity-60"
+                    >
+                      {score}
+                    </Radio.Root>
+                  ))}
+                </RadioGroup>
+                <div className="flex justify-between px-1 text-[0.6875rem] text-muted-foreground" aria-hidden>
+                  <span>{lowLabel}</span>
+                  <span>{highLabel}</span>
+                </div>
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
       <FieldError errors={error?.map((message) => ({ message }))} />
     </div>
   );

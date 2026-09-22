@@ -11,7 +11,7 @@ import { isPollOpen } from "@/lib/poll/status";
 import type { InsightContext } from "@/lib/insights/types";
 import { ballotSize, type RankingConfig } from "./definition";
 
-export type RankingOptionResult = Scored & {
+type RankingOptionResult = Scored & {
   /** Borda points: rank 1 earns `ballotSize` points, the last ranked place earns 1. */
   points: number;
   /** Mean rank among ballots that ranked it; null if nobody did. */

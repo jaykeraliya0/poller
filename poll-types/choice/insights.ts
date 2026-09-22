@@ -12,7 +12,7 @@ import { isPollOpen } from "@/lib/poll/status";
 import type { InsightContext } from "@/lib/insights/types";
 import type { ChoiceConfig } from "./definition";
 
-export type ChoiceOptionResult = Scored & {
+type ChoiceOptionResult = Scored & {
   /** Votes for this option. Same as `score`, named for readability in the UI. */
   count: number;
   /** Share of respondents who picked it (multi-select shares can sum above 1). */

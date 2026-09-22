@@ -4,12 +4,14 @@ import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PollFormProps } from "./poll-form";
 
-export function PollFormSkeleton() {
+function PollFormSkeleton() {
   return (
-    <div className="flex flex-col gap-4" role="status" aria-busy="true" aria-label="Loading form">
-      <Skeleton className="h-52 rounded-3xl" />
-      <Skeleton className="h-72 rounded-3xl" />
-      <Skeleton className="h-96 rounded-3xl" />
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-6" role="status" aria-busy="true" aria-label="Loading form">
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-56 rounded-[14px]" />
+        <Skeleton className="h-72 rounded-[14px]" />
+      </div>
+      <Skeleton className="hidden h-80 rounded-[14px] lg:block" />
     </div>
   );
 }

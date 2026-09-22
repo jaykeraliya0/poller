@@ -42,7 +42,6 @@ export const pollSettingsSchema = z.object({
     .nullable(),
 });
 
-export type PollSettingsInput = z.input<typeof pollSettingsSchema>;
 export type PollSettings = z.output<typeof pollSettingsSchema>;
 
 export const DEFAULT_POLL_SETTINGS: PollSettings = {
@@ -68,11 +67,3 @@ export const pollDetailsSchema = z.object({
   type: z.enum(PollType),
   template: z.enum(PollTemplate).default("CUSTOM"),
 });
-
-export const createPollSchema = pollDetailsSchema.extend({
-  settings: pollSettingsSchema,
-  config: z.unknown(),
-  options: z.array(z.unknown()),
-});
-
-export type CreatePollInput = z.input<typeof createPollSchema>;

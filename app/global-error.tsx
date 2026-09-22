@@ -5,7 +5,7 @@
 export default function GlobalError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   return (
     <html lang="en">
-      <body style={{ fontFamily: "system-ui, sans-serif", display: "grid", placeItems: "center", minHeight: "100vh", margin: 0, padding: 16 }}>
+      <body style={{ fontFamily: "system-ui, sans-serif", background: "#f2f3f6", color: "#151823", display: "grid", placeItems: "center", minHeight: "100vh", margin: 0, padding: 16 }}>
         <title>Something went wrong · Poller</title>
         <main style={{ maxWidth: 420, textAlign: "center" }}>
           <h1 style={{ fontSize: 22 }}>Something went wrong</h1>
@@ -13,7 +13,7 @@ export default function GlobalError({ error, retry }: { error: Error & { digest?
           {error.digest && <p style={{ color: "#777", fontSize: 12 }}>Reference: {error.digest}</p>}
           <button
             onClick={() => retry()}
-            style={{ marginTop: 12, minHeight: 44, padding: "0 20px", borderRadius: 16, border: 0, background: "#00786f", color: "white", fontSize: 16 }}
+            style={{ marginTop: 12, minHeight: 44, padding: "0 20px", borderRadius: 10, border: 0, background: "#3b38f0", color: "white", fontSize: 16 }}
           >
             Try again
           </button>

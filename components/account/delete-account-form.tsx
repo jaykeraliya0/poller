@@ -20,7 +20,7 @@ export function DeleteAccountForm({ email }: { email: string }) {
         defaultValue={state?.values?.confirmation}
         errors={state?.fieldErrors?.confirmation}
       />
-      <SubmitButton variant="destructive" pendingLabel="Deleting…" className="sm:w-auto sm:self-start">
+      <SubmitButton variant="destructive" pendingLabel="Deleting…" className="h-10 sm:w-auto sm:self-start">
         Delete my account
       </SubmitButton>
     </form>

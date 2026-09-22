@@ -41,7 +41,7 @@ export function PollMoreMenu({ pollId, title, responseCount }: PollMoreMenuProps
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-lg" className="size-11" aria-label="More actions" />}>
+        <DropdownMenuTrigger render={<Button variant="outline" size="icon-lg" aria-label="More actions" />}>
           <EllipsisIcon />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">

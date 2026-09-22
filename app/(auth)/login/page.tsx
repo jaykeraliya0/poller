@@ -12,9 +12,9 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (await getCurrentUser()) redirect(safeRedirectPath(next));
   return (
     <>
-      <div className="mb-8 space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
-        <p className="text-sm text-muted-foreground">Sign in to create polls and see their insights.</p>
+      <div className="mb-8 flex flex-col gap-2">
+        <h1 className="font-display text-[2rem] leading-tight font-bold">Welcome back</h1>
+        <p className="text-muted-foreground">Sign in to create polls and see their results.</p>
       </div>
       <AuthForm mode="login" next={safeRedirectPath(next)} />
     </>

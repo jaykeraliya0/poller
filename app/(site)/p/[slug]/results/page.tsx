@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ArrowLeftIcon, EyeOffIcon } from "lucide-react";
+import { EyeOffIcon } from "lucide-react";
 import { PageContainer } from "@/components/layout/page-container";
 import { AutoRefresh } from "@/components/insights/auto-refresh";
 import { PollResults } from "@/components/insights/poll-results";
 import { PollHeader } from "@/components/poll/poll-header";
+import { BackLink } from "@/components/shared/back-link";
 import { ButtonLink } from "@/components/shared/button-link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { db } from "@/lib/db";
@@ -50,26 +51,21 @@ export default async function ResultsPage({ params }: PageProps<"/p/[slug]/resul
   const open = isPollOpen(poll, now);
   const access = canViewResults(poll, viewer, now);
 
-  const backLink = (
-    <ButtonLink href={`/p/${slug}`} variant="ghost" size="sm" className="self-start">
-      <ArrowLeftIcon data-icon="inline-start" aria-hidden />
-      {!open ? "Poll" : existing ? "Change your vote" : "Vote"}
-    </ButtonLink>
-  );
+  const backLink = <BackLink href={`/p/${slug}`}>{!open ? "Poll" : existing ? "Change your vote" : "Vote"}</BackLink>;
 
   if (!access.allowed) {
     const message = hiddenMessage(access.reason, poll.closesAt, now);
     return (
-      <PageContainer className="flex flex-col gap-6 py-6">
+      <PageContainer className="flex flex-col gap-7 py-7 lg:py-10">
         {backLink}
         <PollHeader poll={poll} isOwner={viewer.isOwner} now={now} />
-        <Alert>
+        <Alert className="max-w-2xl">
           <EyeOffIcon aria-hidden />
           <AlertTitle>{message.title}</AlertTitle>
           <AlertDescription className="flex flex-col items-start gap-3">
             {message.body}
             {access.reason === "AFTER_VOTE" && open && (
-              <ButtonLink href={`/p/${slug}`} size="lg" className="h-11">
+              <ButtonLink href={`/p/${slug}`} size="lg">
                 Vote now
               </ButtonLink>
             )}
@@ -82,7 +78,7 @@ export default async function ResultsPage({ params }: PageProps<"/p/[slug]/resul
   const { insights, rows } = await loadPollResults(poll, now);
 
   return (
-    <PageContainer className="flex flex-col gap-6 py-6">
+    <PageContainer className="flex flex-col gap-7 py-7 lg:py-10">
       <div className="flex items-center justify-between gap-3">
         {backLink}
         {open && <AutoRefresh />}
@@ -96,7 +92,7 @@ export default async function ResultsPage({ params }: PageProps<"/p/[slug]/resul
         now={now}
         emptyAction={
           open && !existing ? (
-            <ButtonLink href={`/p/${slug}`} size="lg" className="h-11">
+            <ButtonLink href={`/p/${slug}`} size="lg">
               Be the first to vote
             </ButtonLink>
           ) : undefined

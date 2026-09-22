@@ -4,7 +4,7 @@
  */
 export const VOTER_TOKEN_COOKIE = "voter_token";
 
-export const VOTER_TOKEN_MAX_AGE = 60 * 60 * 24 * 365;
+const VOTER_TOKEN_MAX_AGE = 60 * 60 * 24 * 365;
 
 export const voterTokenCookieOptions = {
   httpOnly: true,

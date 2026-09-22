@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { InfoIcon } from "lucide-react";
-import { PageContainer } from "@/components/layout/page-container";
+import { AppPage } from "@/components/layout/app-page";
+import { PageHeader } from "@/components/layout/page-header";
 import { BackLink } from "@/components/shared/back-link";
 import { PollFormLoader } from "@/components/poll-form/poll-form-loader";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -23,9 +24,8 @@ export default async function EditPollPage({ params }: PageProps<"/polls/[id]/ed
   ]);
 
   return (
-    <PageContainer className="flex flex-col gap-6 py-6">
-      <BackLink href={`/polls/${poll.id}/manage`}>Back to results</BackLink>
-      <h1 className="text-2xl font-semibold tracking-tight">Edit poll</h1>
+    <AppPage>
+      <PageHeader above={<BackLink href={`/polls/${poll.id}/manage`}>Back to results</BackLink>} title="Edit poll" description={poll.title} />
       {responseCount > 0 && (
         <Alert>
           <InfoIcon aria-hidden />
@@ -56,6 +56,6 @@ export default async function EditPollPage({ params }: PageProps<"/polls/[id]/ed
           votedOptionIds: options.filter((option) => option._count.answers > 0).map((option) => option.id),
         }}
       />
-    </PageContainer>
+    </AppPage>
   );
 }

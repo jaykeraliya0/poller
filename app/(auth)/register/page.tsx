@@ -12,11 +12,9 @@ export default async function RegisterPage({ searchParams }: PageProps<"/registe
   if (await getCurrentUser()) redirect(safeRedirectPath(next));
   return (
     <>
-      <div className="mb-8 space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
-        <p className="text-sm text-muted-foreground">
-          You need an account to create polls. Voting doesn&apos;t require one.
-        </p>
+      <div className="mb-8 flex flex-col gap-2">
+        <h1 className="font-display text-[2rem] leading-tight font-bold">Create your account</h1>
+        <p className="text-muted-foreground">You need an account to create polls. Voting doesn&apos;t require one.</p>
       </div>
       <AuthForm mode="register" next={safeRedirectPath(next)} />
     </>

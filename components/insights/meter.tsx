@@ -7,7 +7,7 @@ type MeterProps = {
   className?: string;
 };
 
-/** A single ratio against a limit: same-hue fill on a neutral track. */
+/** A single ratio against a limit: signal fill on a neutral track. */
 export function Meter({ value, label, className }: MeterProps) {
   const clamped = Math.min(Math.max(value, 0), 1);
   return (
@@ -17,9 +17,9 @@ export function Meter({ value, label, className }: MeterProps) {
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(clamped * 100)}
-      className={cn("h-2 w-full overflow-hidden rounded-[4px] bg-viz-track", className)}
+      className={cn("h-1.5 w-full overflow-hidden rounded-full bg-viz-track", className)}
     >
-      <div className="h-full rounded-r-[4px] bg-viz-accent" style={{ width: `${clamped * 100}%` }} />
+      <div className="tally-fill h-full rounded-full bg-viz-accent" style={{ width: `${clamped * 100}%` }} />
     </div>
   );
 }

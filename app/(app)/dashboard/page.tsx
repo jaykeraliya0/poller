@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
-import { PlusIcon, VoteIcon } from "lucide-react";
-import { PageContainer } from "@/components/layout/page-container";
-import { PollListItem } from "@/components/poll/poll-list-item";
-import { ButtonLink } from "@/components/shared/button-link";
-import { EmptyState } from "@/components/shared/empty-state";
+import { AppPage } from "@/components/layout/app-page";
+import { PageHeader } from "@/components/layout/page-header";
+import { PollBrowser, type PollSummary } from "@/components/poll/poll-browser";
+import { statusLabel } from "@/components/poll/status-badge";
+import { TemplateGrid } from "@/components/poll/template-card";
 import { QueryToast } from "@/components/shared/query-toast";
 import { requirePageUser } from "@/lib/auth/guards";
+import { formatRelative } from "@/lib/datetime";
+import { getPollStatus } from "@/lib/poll/status";
 import { listPollsForOwner } from "@/lib/poll/service";
+import { POLL_TEMPLATES } from "@/lib/poll/templates";
+import { getPollType } from "@/poll-types/registry";
 
 export const metadata: Metadata = { title: "My polls" };
 
@@ -15,31 +19,49 @@ export default async function DashboardPage() {
   const polls = await listPollsForOwner(user.id);
   const now = new Date();
 
+  // Status and relative times come from server time, so the list renders the same on both sides.
+  const summaries: PollSummary[] = polls.map((poll) => ({
+    id: poll.id,
+    title: poll.title,
+    typeLabel: getPollType(poll.type).label,
+    status: getPollStatus(poll, now),
+    statusLabel: statusLabel(poll, now),
+    responses: poll._count.responses,
+    expected: poll.expectedParticipants,
+    createdLabel: formatRelative(poll.createdAt, now),
+  }));
+  const openCount = summaries.filter((poll) => poll.status !== "CLOSED").length;
+
   return (
-    <PageContainer className="py-8">
+    <AppPage>
       <QueryToast param="deleted" value="1" message="Poll deleted" />
-      <h1 className="mb-6 text-2xl font-semibold tracking-tight">My polls</h1>
 
       {polls.length === 0 ? (
-        <EmptyState
-          icon={VoteIcon}
-          title="No polls yet"
-          description="Create your first poll and share the link with your group."
-        >
-          <ButtonLink href="/polls/new" size="lg" className="h-11">
-            <PlusIcon data-icon="inline-start" aria-hidden />
-            Create a poll
-          </ButtonLink>
-        </EmptyState>
+        <>
+          <PageHeader title="My polls" />
+          <section aria-labelledby="empty-heading" className="panel flex flex-col gap-6 p-5 sm:p-7">
+            <div className="flex flex-col gap-1.5">
+              <h2 id="empty-heading" className="font-display text-xl font-bold">
+                No polls yet
+              </h2>
+              <p className="text-muted-foreground">Pick a starting point. You can change everything before you share it.</p>
+            </div>
+            <TemplateGrid templates={POLL_TEMPLATES} />
+          </section>
+        </>
       ) : (
-        <ul className="flex flex-col gap-3">
-          {polls.map((poll) => (
-            <li key={poll.id}>
-              <PollListItem poll={poll} now={now} />
-            </li>
-          ))}
-        </ul>
+        <>
+          <PageHeader
+            title="My polls"
+            description={
+              openCount > 0
+                ? `${openCount} of your ${polls.length} polls ${openCount === 1 ? "is" : "are"} taking votes.`
+                : "None of your polls are taking votes right now."
+            }
+          />
+          <PollBrowser polls={summaries} />
+        </>
       )}
-    </PageContainer>
+    </AppPage>
   );
 }

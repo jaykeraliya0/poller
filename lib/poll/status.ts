@@ -5,7 +5,7 @@ export type PollTiming = Pick<Poll, "closesAt" | "closedAt">;
 export type PollStatus = "OPEN" | "CLOSING_SOON" | "CLOSED";
 
 /** A poll is flagged "closing soon" inside this window before its deadline. */
-export const CLOSING_SOON_MS = 24 * 60 * 60 * 1000;
+const CLOSING_SOON_MS = 24 * 60 * 60 * 1000;
 
 /** The moment voting stopped, or null while the poll is still open. */
 export function getClosedAt(poll: PollTiming, now: Date = new Date()): Date | null {

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { submitVoteAction } from "@/actions/votes";
-import { FormSection } from "@/components/forms/form-section";
 import { TextField, TextareaField } from "@/components/forms/text-field";
 import { FormAlert } from "@/components/shared/form-alert";
 import { STICKY_BAR_PADDING, StickyActionBar } from "@/components/shared/sticky-action-bar";
@@ -101,27 +100,37 @@ export function VoteForm(props: VoteFormProps) {
   const bannerMessage = failure && !failure.fieldErrors ? failure.message : null;
 
   return (
-    <form ref={formRef} onSubmit={onSubmit} noValidate className={cn("flex flex-col gap-4", STICKY_BAR_PADDING)}>
-      <FormAlert message={bannerMessage} />
-      {failure?.code === ErrorCode.LOGIN_REQUIRED && (
-        <Link href={`/login?next=/p/${poll.slug}`} className="text-sm font-medium text-primary underline-offset-4 hover:underline">
-          Sign in to vote
-        </Link>
-      )}
+    <form
+      ref={formRef}
+      onSubmit={onSubmit}
+      noValidate
+      className={cn("grid gap-5 lg:grid-cols-[minmax(0,1fr)_20.5rem] lg:items-start lg:gap-6", STICKY_BAR_PADDING)}
+    >
+      <div className="flex min-w-0 flex-col gap-4">
+        <FormAlert message={bannerMessage} />
+        {failure?.code === ErrorCode.LOGIN_REQUIRED && (
+          <Link href={`/login?next=/p/${poll.slug}`} className="text-sm font-medium text-signal-ink underline-offset-4 hover:underline">
+            Sign in to vote
+          </Link>
+        )}
 
-      <ui.VoteInput
-        config={poll.config}
-        options={options}
-        value={answers}
-        onChange={edit(setAnswers)}
-        errors={errors}
-        newOptionIds={newOptionIds}
-        disabled={pending || blocked}
-      />
+        <section aria-label="Your answers" className="panel @container p-4 sm:p-6">
+          <ui.VoteInput
+            config={poll.config}
+            options={options}
+            value={answers}
+            onChange={edit(setAnswers)}
+            errors={errors}
+            newOptionIds={newOptionIds}
+            disabled={pending || blocked}
+          />
+        </section>
+      </div>
 
-      <FormSection title={poll.isAnonymous ? "Anything to add?" : "About you"}>
+      <aside className="panel flex flex-col gap-5 p-4 sm:p-5 lg:sticky lg:top-24">
+        <h2 className="font-display text-lg font-bold">{poll.isAnonymous ? "Anything to add?" : "About you"}</h2>
         {poll.isAnonymous ? (
-          <p className="text-sm text-muted-foreground">This poll is anonymous: your name isn&apos;t collected.</p>
+          <p className="-mt-3 text-sm text-muted-foreground">This poll is anonymous: your name isn&apos;t collected.</p>
         ) : (
           <TextField
             label="Your name"
@@ -143,18 +152,18 @@ export function VoteForm(props: VoteFormProps) {
           placeholder="Share context with the organiser"
           disabled={blocked}
         />
-      </FormSection>
 
-      <StickyActionBar className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <p className="text-center text-xs text-muted-foreground sm:order-last sm:text-left" aria-live="polite">
-          {ui.progress(answers, options, poll.config)}
-        </p>
-        <Button type="submit" size="lg" disabled={pending || blocked} className="h-11 w-full sm:w-auto sm:min-w-40">
-          {pending && <Spinner data-icon="inline-start" />}
-          {pending ? "Saving…" : hasVoted ? "Update vote" : "Submit vote"}
-        </Button>
-        {hasVoted && poll.allowVoteChange && !blocked && <WithdrawVoteButton slug={poll.slug} />}
-      </StickyActionBar>
+        <StickyActionBar className="flex flex-col gap-2 sm:border-t sm:pt-5">
+          <p className="text-center text-xs font-medium text-muted-foreground sm:text-left" aria-live="polite">
+            {ui.progress(answers, options, poll.config)}
+          </p>
+          <Button type="submit" size="lg" disabled={pending || blocked} className="h-11 w-full text-[0.9375rem]">
+            {pending && <Spinner data-icon="inline-start" />}
+            {pending ? "Saving…" : hasVoted ? "Update vote" : "Submit vote"}
+          </Button>
+          {hasVoted && poll.allowVoteChange && !blocked && <WithdrawVoteButton slug={poll.slug} />}
+        </StickyActionBar>
+      </aside>
     </form>
   );
 }

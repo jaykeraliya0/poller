@@ -23,7 +23,7 @@ export type PollSubmission = {
   };
 };
 
-export type ParsedPoll = z.output<typeof pollDetailsSchema> & PollSetup & { settings: PollSettings };
+type ParsedPoll = z.output<typeof pollDetailsSchema> & PollSetup & { settings: PollSettings };
 
 export type SubmissionResult =
   | { success: true; data: ParsedPoll }

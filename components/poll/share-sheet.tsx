@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { PartyPopperIcon, Share2Icon } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Share2Icon } from "lucide-react";
+import { LogoMark } from "@/components/layout/logo";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,25 +25,25 @@ type ShareSheetProps = {
 export function ShareSheet({ url, title, defaultOpen = false }: ShareSheetProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [justCreated] = useState(defaultOpen);
-  const router = useRouter();
   const pathname = usePathname();
 
   const onOpenChange = (next: boolean) => {
     setOpen(next);
-    // Drop ?created=1 so a refresh doesn't reopen the celebration.
-    if (!next && justCreated) router.replace(pathname, { scroll: false });
+    // Drop ?created=1 so a refresh doesn't reopen the celebration. Native history,
+    // not router.replace: only the URL changes, so there's no server round trip.
+    if (!next && justCreated) window.history.replaceState(null, "", pathname);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger render={<Button variant="outline" size="lg" className="h-11" />}>
+      <DialogTrigger render={<Button variant="outline" size="lg" />}>
         <Share2Icon data-icon="inline-start" />
         Share
       </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {justCreated && <PartyPopperIcon className="size-5 text-primary" aria-hidden />}
+      <DialogContent className="gap-5 sm:max-w-md">
+        <DialogHeader className="gap-2">
+          {justCreated && <LogoMark className="mb-1 size-9" />}
+          <DialogTitle className="font-display text-xl font-bold">
             {justCreated ? "Your poll is live" : "Share this poll"}
           </DialogTitle>
           <DialogDescription>Anyone with this link can vote{justCreated ? ". Send it to your group." : "."}</DialogDescription>

@@ -22,7 +22,7 @@ export function AuthForm({ mode, next }: AuthFormProps) {
   const nextQuery = next ? `?next=${encodeURIComponent(next)}` : "";
 
   return (
-    <form action={formAction} className="flex flex-col gap-6" noValidate>
+    <form action={formAction} className="flex flex-col gap-5" noValidate>
       {next && <input type="hidden" name="next" value={next} />}
       <FormAlert message={formMessage} />
 
@@ -66,7 +66,7 @@ export function AuthForm({ mode, next }: AuthFormProps) {
         {isRegister ? "Already have an account? " : "New to Poller? "}
         <Link
           href={`${isRegister ? "/login" : "/register"}${nextQuery}`}
-          className="font-medium text-primary underline-offset-4 hover:underline"
+          className="font-medium text-signal-ink underline-offset-4 hover:underline"
         >
           {isRegister ? "Sign in" : "Create an account"}
         </Link>

@@ -1,5 +1,5 @@
-import { Badge } from "@/components/ui/badge";
-import { ResultBar } from "@/components/insights/result-bar";
+import { RowBadge } from "@/components/insights/row-badge";
+import { TallyRow } from "@/components/insights/tally";
 import { plural } from "@/lib/insights/outcome";
 import type { ResultsViewProps } from "../results-view-types";
 import type { RankingInsights } from "./insights";
@@ -15,30 +15,28 @@ export function RankingResultsView({ insights, totalResponses, open }: ResultsVi
   const sorted = [...options].sort((a, b) => b.points - a.points);
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-xs text-muted-foreground">
-        A #1 ranking earns {plural(ballotSize, "point")}, #2 earns {Math.max(ballotSize - 1, 0)}, and so on.
-      </p>
-      <ol className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
+      <ol className="flex flex-col gap-3">
         {sorted.map((option, index) => {
           const isTop = highlighted.has(option.optionId);
           return (
-            <li key={option.optionId} className="flex flex-col gap-1.5">
-              <div className="flex items-start justify-between gap-3">
-                <span className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="w-5 shrink-0 text-sm text-muted-foreground tabular-nums">{index + 1}.</span>
-                  <span className="break-words">{option.label}</span>
-                  {isTop && outcome.kind === "LEADER" && <Badge>{open ? "Leading" : "Winner"}</Badge>}
-                </span>
-                <span className="shrink-0 text-sm text-muted-foreground tabular-nums">{plural(option.points, "pt")}</span>
-              </div>
-              <ResultBar
+            <li key={option.optionId} className="grid grid-cols-[1.75rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1">
+              <span className="font-display flex h-11 items-center justify-center text-lg font-bold text-muted-foreground tabular-nums">
+                {index + 1}
+              </span>
+              <TallyRow
+                index={index}
                 max={maxPoints}
-                segments={[
-                  { value: option.points, label: option.label, className: !emphasise || isTop ? "bg-viz-accent" : "bg-viz-rest" },
-                ]}
+                label={
+                  <span className="flex flex-wrap items-center gap-2">
+                    {option.label}
+                    {isTop && outcome.kind === "LEADER" && <RowBadge>{open ? "Leading" : "Winner"}</RowBadge>}
+                  </span>
+                }
+                value={plural(option.points, "pt")}
+                segments={[{ value: option.points, label: option.label, tone: !emphasise ? "soft" : isTop ? "signal" : "rest" }]}
               />
-              <span className="text-xs text-muted-foreground">
+              <span className="col-start-2 px-0.5 text-xs text-muted-foreground">
                 {option.averageRank === null
                   ? "Not ranked yet"
                   : `Average rank ${option.averageRank} · first choice for ${option.firstChoices}`}
@@ -47,6 +45,9 @@ export function RankingResultsView({ insights, totalResponses, open }: ResultsVi
           );
         })}
       </ol>
+      <p className="text-xs text-muted-foreground">
+        A #1 ranking earns {plural(ballotSize, "point")}, #2 earns {Math.max(ballotSize - 1, 0)}, and so on.
+      </p>
     </div>
   );
 }

@@ -69,7 +69,7 @@ type ToggleRowProps = {
 
 function ToggleRow({ id, label, description, checked, disabled, onChange }: ToggleRowProps) {
   return (
-    <Field orientation="horizontal">
+    <Field orientation="horizontal" className="px-4 py-3.5">
       <FieldContent>
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
         <FieldDescription>{description}</FieldDescription>
@@ -92,72 +92,80 @@ export function SettingsPanel({ value, onChange, errors, anonymityLocked = false
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3">
+      <div className="divide-y rounded-[12px] border">
+        <div className="flex flex-col">
+          <ToggleRow
+            id="settings-deadline"
+            label="Set a deadline"
+            description="Voting closes automatically. You can also close it early."
+            checked={value.hasDeadline}
+            onChange={(checked) => set("hasDeadline", checked)}
+          />
+          {value.hasDeadline && (
+            <div className="px-4 pb-4">
+              <FieldShell label="Closes at" errors={errors["settings.closesAt"]}>
+                {(control) => (
+                  <Input
+                    {...control}
+                    type="datetime-local"
+                    value={value.closesAt}
+                    onChange={(event) => set("closesAt", event.target.value)}
+                    className="sm:max-w-64"
+                  />
+                )}
+              </FieldShell>
+            </div>
+          )}
+        </div>
         <ToggleRow
-          id="settings-deadline"
-          label="Set a deadline"
-          description="Voting closes automatically. You can also close it early."
-          checked={value.hasDeadline}
-          onChange={(checked) => set("hasDeadline", checked)}
+          id="settings-allow-change"
+          label="Let voters change their vote"
+          description="Voters can update or withdraw their answer while the poll is open."
+          checked={value.allowVoteChange}
+          onChange={(checked) => set("allowVoteChange", checked)}
         />
-        {value.hasDeadline && (
-          <FieldShell label="Closes at" errors={errors["settings.closesAt"]}>
-            {(control) => (
-              <Input
-                {...control}
-                type="datetime-local"
-                value={value.closesAt}
-                onChange={(event) => set("closesAt", event.target.value)}
-                className="h-11"
-              />
-            )}
-          </FieldShell>
-        )}
+        <ToggleRow
+          id="settings-anonymous"
+          label="Anonymous voting"
+          description={
+            anonymityLocked
+              ? "Locked because people have already voted."
+              : "Names aren't asked for or shown, not even to you."
+          }
+          checked={value.isAnonymous}
+          disabled={anonymityLocked}
+          onChange={(checked) => set("isAnonymous", checked)}
+        />
+        <ToggleRow
+          id="settings-require-login"
+          label="Require sign-in to vote"
+          description="Stops people voting twice from different browsers."
+          checked={value.requireLogin}
+          onChange={(checked) => set("requireLogin", checked)}
+        />
       </div>
-
-      <ToggleRow
-        id="settings-allow-change"
-        label="Let voters change their vote"
-        description="Voters can update or withdraw their answer while the poll is open."
-        checked={value.allowVoteChange}
-        onChange={(checked) => set("allowVoteChange", checked)}
-      />
-      <ToggleRow
-        id="settings-anonymous"
-        label="Anonymous voting"
-        description={
-          anonymityLocked
-            ? "Locked because people have already voted."
-            : "Names aren't asked for or shown, not even to you."
-        }
-        checked={value.isAnonymous}
-        disabled={anonymityLocked}
-        onChange={(checked) => set("isAnonymous", checked)}
-      />
-      <ToggleRow
-        id="settings-require-login"
-        label="Require sign-in to vote"
-        description="Stops people voting twice from different browsers."
-        checked={value.requireLogin}
-        onChange={(checked) => set("requireLogin", checked)}
-      />
 
       <FieldSet>
         <FieldLegend variant="label">Who can see results</FieldLegend>
         <RadioGroup
           value={value.resultsVisibility}
           onValueChange={(next) => set("resultsVisibility", next as ResultsVisibility)}
+          className="gap-2 sm:grid-cols-2"
         >
           {VISIBILITY_OPTIONS.map((option) => (
-            <Field key={option.value} orientation="horizontal">
-              <RadioGroupItem value={option.value} id={`visibility-${option.value}`} />
-              <FieldContent>
-                <FieldLabel htmlFor={`visibility-${option.value}`} className="font-normal">
-                  {option.label}
-                </FieldLabel>
-                <FieldDescription>{option.description}</FieldDescription>
-              </FieldContent>
-            </Field>
+            <FieldLabel
+              key={option.value}
+              htmlFor={`visibility-${option.value}`}
+              className="font-normal"
+            >
+              <Field orientation="horizontal">
+                <RadioGroupItem value={option.value} id={`visibility-${option.value}`} />
+                <FieldContent>
+                  <span className="text-sm font-medium">{option.label}</span>
+                  <FieldDescription>{option.description}</FieldDescription>
+                </FieldContent>
+              </Field>
+            </FieldLabel>
           ))}
         </RadioGroup>
         <FieldError errors={errors["settings.resultsVisibility"]?.map((message) => ({ message }))} />
@@ -176,7 +184,7 @@ export function SettingsPanel({ value, onChange, errors, anonymityLocked = false
             min={1}
             value={value.expectedParticipants}
             onChange={(event) => set("expectedParticipants", event.target.value)}
-            className="h-11 w-32"
+            className="max-w-32"
           />
         )}
       </FieldShell>

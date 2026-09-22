@@ -41,7 +41,7 @@ function ChoiceConfigFields({ config, onConfigChange, errors, configLocked }: Ty
               inputMode="numeric"
               min={1}
               disabled={configLocked}
-              className="h-11 w-32"
+              className="max-w-32"
               value={maxSelections ?? ""}
               onChange={(event) =>
                 onConfigChange({

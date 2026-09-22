@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 type QueryToastProps = { param: string; value: string; message: string };
@@ -21,7 +21,6 @@ export function QueryToast(props: QueryToastProps) {
 
 function QueryToastEffect({ param, value, message }: QueryToastProps) {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const pathname = usePathname();
   const matched = searchParams.get(param) === value;
 
@@ -30,8 +29,9 @@ function QueryToastEffect({ param, value, message }: QueryToastProps) {
     toast.success(message);
     const next = new URLSearchParams(searchParams);
     next.delete(param);
-    router.replace(next.size ? `${pathname}?${next}` : pathname, { scroll: false });
-  }, [matched, message, param, pathname, router, searchParams]);
+    // Only the URL changes (native history, synced with useSearchParams); the page isn't refetched.
+    window.history.replaceState(null, "", next.size ? `${pathname}?${next}` : pathname);
+  }, [matched, message, param, pathname, searchParams]);
 
   return null;
 }

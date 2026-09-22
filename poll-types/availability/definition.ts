@@ -5,7 +5,7 @@ import { definePollType } from "../types";
 import { optionIdSchema } from "../shared";
 import { computeAvailabilityInsights, type AvailabilityInsights } from "./insights";
 
-export const Availability = { NO: 0, MAYBE: 1, YES: 2 } as const;
+const Availability = { NO: 0, MAYBE: 1, YES: 2 } as const;
 export type AvailabilityValue = (typeof Availability)[keyof typeof Availability];
 
 export const availabilityConfigSchema = z.object({

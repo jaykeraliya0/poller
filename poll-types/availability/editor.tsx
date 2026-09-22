@@ -16,7 +16,7 @@ import type { PollTypeEditor, TypeEditorProps } from "../editor-types";
 import type { AvailabilityConfig } from "./definition";
 
 /** Wall-clock slot in the poll's time zone; converted to instants on submit. `id` = already saved. */
-export type SlotDraft = { key: string; date: string; time: string; durationMin: number; id?: string };
+type SlotDraft = { key: string; date: string; time: string; durationMin: number; id?: string };
 
 const DURATIONS = [30, 60, 90, 120, 180, 240];
 const MINUTE = 60_000;
@@ -123,15 +123,15 @@ function SlotPicker({ options, onOptionsChange, errors, lockedOptionIds }: TypeE
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-2 gap-3 rounded-2xl border border-dashed p-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+      <div className="grid grid-cols-2 gap-3 rounded-[12px] bg-muted/70 p-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
         <FieldShell label="Date" className="col-span-2 sm:col-span-1">
           {(control) => (
-            <Input {...control} type="date" value={date} onChange={(event) => setDate(event.target.value)} className="h-11" />
+            <Input {...control} type="date" value={date} onChange={(event) => setDate(event.target.value)} />
           )}
         </FieldShell>
         <FieldShell label="Start">
           {(control) => (
-            <Input {...control} type="time" step={900} value={time} onChange={(event) => setTime(event.target.value)} className="h-11" />
+            <Input {...control} type="time" step={900} value={time} onChange={(event) => setTime(event.target.value)} />
           )}
         </FieldShell>
         <FieldShell label="Length">
@@ -145,7 +145,7 @@ function SlotPicker({ options, onOptionsChange, errors, lockedOptionIds }: TypeE
             </NativeSelect>
           )}
         </FieldShell>
-        <Button type="button" size="lg" onClick={addSlot} disabled={atLimit} className="col-span-2 h-11 sm:col-span-1">
+        <Button type="button" size="lg" onClick={addSlot} disabled={atLimit} className="col-span-2 sm:col-span-1">
           <PlusIcon data-icon="inline-start" />
           Add slot
         </Button>
@@ -157,9 +157,13 @@ function SlotPicker({ options, onOptionsChange, errors, lockedOptionIds }: TypeE
       ) : (
         <div className="flex flex-col gap-4">
           {days.map(([day, entries]) => (
-            <section key={day} aria-label={formatDay(new Date(`${day}T12:00:00Z`), "UTC")}>
-              <h3 className="mb-2 text-sm font-medium">{formatDay(new Date(`${day}T12:00:00Z`), "UTC")}</h3>
-              <ul className="flex flex-col gap-2">
+            <section
+              key={day}
+              aria-label={formatDay(new Date(`${day}T12:00:00Z`), "UTC")}
+              className="grid gap-2 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-4"
+            >
+              <h3 className="font-display text-[0.95rem] font-semibold sm:pt-2">{formatDay(new Date(`${day}T12:00:00Z`), "UTC")}</h3>
+              <ul className="flex flex-col gap-1.5">
                 {entries.map(({ slot, index }) => {
                   const locked = Boolean(slot.id && lockedOptionIds.has(slot.id));
                   const slotErrors = [
@@ -169,17 +173,18 @@ function SlotPicker({ options, onOptionsChange, errors, lockedOptionIds }: TypeE
                   return (
                     <li key={slot.key} className="flex flex-col gap-1">
                       <div
-                        className="flex items-center justify-between gap-2 rounded-2xl bg-muted/60 py-1 pr-1 pl-3 data-invalid:ring-2 data-invalid:ring-destructive/40"
+                        className="flex items-center justify-between gap-2 rounded-[10px] border bg-panel py-1 pr-1 pl-3.5 data-invalid:border-destructive/60 data-invalid:ring-2 data-invalid:ring-destructive/20"
                         data-invalid={slotErrors.length ? "" : undefined}
                       >
-                        <span className="text-sm tabular-nums">
+                        <span className="text-sm font-medium tabular-nums">
                           {describeSlot(slot)}
                           <span className="ml-2 text-xs text-muted-foreground">{formatDuration(slot.durationMin)}</span>
                         </span>
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon-lg"
+                          size="icon"
+                          className="text-muted-foreground"
                           onClick={() => removeSlot(slot.key)}
                           disabled={locked}
                           title={locked ? "Has votes, so it can't be removed" : undefined}

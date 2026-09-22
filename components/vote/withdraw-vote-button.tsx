@@ -37,7 +37,7 @@ export function WithdrawVoteButton({ slug }: { slug: string }) {
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger render={<Button type="button" variant="ghost" size="lg" className="h-11 text-destructive" />}>
+      <AlertDialogTrigger render={<Button type="button" variant="ghost" size="lg" className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive" />}>
         Withdraw vote
       </AlertDialogTrigger>
       <AlertDialogContent>

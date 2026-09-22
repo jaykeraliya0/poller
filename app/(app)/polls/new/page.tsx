@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { PageContainer } from "@/components/layout/page-container";
+import { AppPage } from "@/components/layout/app-page";
+import { PageHeader } from "@/components/layout/page-header";
 import { BackLink } from "@/components/shared/back-link";
 import { PollFormLoader } from "@/components/poll-form/poll-form-loader";
 import { TemplateGrid } from "@/components/poll/template-card";
@@ -15,22 +16,18 @@ export default async function NewPollPage({ searchParams }: PageProps<"/polls/ne
 
   if (!template) {
     return (
-      <PageContainer className="py-8">
-        <h1 className="text-2xl font-semibold tracking-tight">What are you deciding?</h1>
-        <p className="mt-2 mb-6 text-muted-foreground">Start from a template. You can change everything.</p>
+      <AppPage>
+        <PageHeader title="What are you deciding?" description="Start from a template. You can change everything before you share it." />
         <TemplateGrid templates={POLL_TEMPLATES} />
-      </PageContainer>
+      </AppPage>
     );
   }
 
   return (
-    <PageContainer className="py-6">
-      <BackLink href="/polls/new" className="mb-2">
-        Templates
-      </BackLink>
-      <h1 className="mb-6 text-2xl font-semibold tracking-tight">{template.name}</h1>
+    <AppPage>
+      <PageHeader above={<BackLink href="/polls/new">Templates</BackLink>} title={template.name} description={template.tagline} />
       {/* Keyed so switching template via the URL starts a fresh draft. */}
       <PollFormLoader key={template.id} mode="create" template={template} />
-    </PageContainer>
+    </AppPage>
   );
 }

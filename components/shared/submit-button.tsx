@@ -18,7 +18,7 @@ export function SubmitButton({ children, pendingLabel, disabled, className, ...p
       size="lg"
       disabled={pending || disabled}
       aria-disabled={pending || disabled}
-      className={cn("h-11 w-full", className)}
+      className={cn("h-11 w-full text-[0.9375rem]", className)}
       {...props}
     >
       {pending && <Spinner data-icon="inline-start" />}

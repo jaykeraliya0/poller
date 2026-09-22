@@ -1,43 +1,61 @@
 import type { Metadata } from "next";
 import { DeleteAccountForm } from "@/components/account/delete-account-form";
-import { PageContainer } from "@/components/layout/page-container";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AppPage } from "@/components/layout/app-page";
+import { PageHeader } from "@/components/layout/page-header";
 import { requirePageUser } from "@/lib/auth/guards";
 
 export const metadata: Metadata = { title: "Settings" };
 
+function SettingsSection({ id, title, description, children, danger }: { id: string; title: string; description?: React.ReactNode; children: React.ReactNode; danger?: boolean }) {
+  return (
+    <section aria-labelledby={id} className="grid gap-4 border-t py-7 first:border-t-0 first:pt-0 md:grid-cols-[16rem_minmax(0,1fr)] md:gap-10">
+      <div className="flex flex-col gap-1">
+        <h2 id={id} className={danger ? "font-semibold text-destructive" : "font-semibold"}>
+          {title}
+        </h2>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
+      </div>
+      <div className="min-w-0">{children}</div>
+    </section>
+  );
+}
+
 export default async function SettingsPage() {
   const user = await requirePageUser("/settings");
   return (
-    <PageContainer className="flex flex-col gap-6 py-8">
-      <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+    <AppPage className="max-w-[900px]">
+      <PageHeader title="Settings" />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Account</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid gap-3 text-sm sm:grid-cols-[8rem_1fr]">
-            <dt className="text-muted-foreground">Name</dt>
-            <dd className="break-words">{user.name}</dd>
-            <dt className="text-muted-foreground">Email</dt>
-            <dd className="break-all">{user.email}</dd>
+      <div className="flex flex-col">
+        <SettingsSection id="account-heading" title="Account" description="The name voters see on polls you create.">
+          <dl className="panel divide-y text-sm">
+            <div className="grid gap-1 px-4 py-3 sm:grid-cols-[6rem_1fr]">
+              <dt className="text-muted-foreground">Name</dt>
+              <dd className="font-medium break-words">{user.name}</dd>
+            </div>
+            <div className="grid gap-1 px-4 py-3 sm:grid-cols-[6rem_1fr]">
+              <dt className="text-muted-foreground">Email</dt>
+              <dd className="font-medium break-all">{user.email}</dd>
+            </div>
           </dl>
-        </CardContent>
-      </Card>
+        </SettingsSection>
 
-      <Card className="border-destructive/30">
-        <CardHeader>
-          <CardTitle className="text-base text-destructive">Delete account</CardTitle>
-          <CardDescription>
-            Permanently deletes your account and every poll you created, including all their votes. Votes you cast
-            on other people&apos;s polls stay, but are no longer linked to you. This can&apos;t be undone.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DeleteAccountForm email={user.email} />
-        </CardContent>
-      </Card>
-    </PageContainer>
+        <SettingsSection
+          id="delete-heading"
+          title="Delete account"
+          danger
+          description={
+            <>
+              Permanently deletes your account and every poll you created, including all their votes. Votes you cast on
+              other people&apos;s polls stay, but are no longer linked to you. This can&apos;t be undone.
+            </>
+          }
+        >
+          <div className="panel border-destructive/25 p-4 sm:p-5">
+            <DeleteAccountForm email={user.email} />
+          </div>
+        </SettingsSection>
+      </div>
+    </AppPage>
   );
 }

@@ -21,7 +21,7 @@ export function TextField({
 }: SharedProps & React.ComponentProps<typeof Input>) {
   return (
     <FieldShell label={label} description={description} errors={errors} id={id}>
-      {(control) => <Input className={cn("h-11", className)} {...control} {...inputProps} />}
+      {(control) => <Input className={className} {...control} {...inputProps} />}
     </FieldShell>
   );
 }
@@ -36,7 +36,7 @@ export function TextareaField({
 }: SharedProps & React.ComponentProps<typeof Textarea>) {
   return (
     <FieldShell label={label} description={description} errors={errors} id={id}>
-      {(control) => <Textarea className={cn("min-h-20", className)} {...control} {...textareaProps} />}
+      {(control) => <Textarea className={cn("min-h-22", className)} {...control} {...textareaProps} />}
     </FieldShell>
   );
 }

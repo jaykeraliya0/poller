@@ -19,7 +19,7 @@ type DbClient = Prisma.TransactionClient | typeof db;
 
 const withAnswers = { answers: { select: { optionId: true, value: true } } } as const;
 
-export async function loadPollBySlug(slug: string) {
+async function loadPollBySlug(slug: string) {
   if (!isValidSlug(slug)) return null;
   return db.poll.findUnique({
     where: { slug },

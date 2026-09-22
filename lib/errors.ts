@@ -19,7 +19,7 @@ export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 /** Field path (e.g. `options.2.label`) → messages. */
 export type FieldErrors = Record<string, string[]>;
 
-export const DEFAULT_ERROR_MESSAGES: Record<ErrorCode, string> = {
+const DEFAULT_ERROR_MESSAGES: Record<ErrorCode, string> = {
   VALIDATION: "Please fix the highlighted fields.",
   UNAUTHENTICATED: "Please sign in to continue.",
   NOT_FOUND: "We couldn't find that poll.",

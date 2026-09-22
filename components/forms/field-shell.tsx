@@ -3,7 +3,7 @@
 import { useId } from "react";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 
-export type ControlProps = {
+type ControlProps = {
   id: string;
   "aria-invalid"?: true;
   "aria-describedby"?: string;
