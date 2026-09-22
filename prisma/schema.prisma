@@ -6,3 +6,122 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum PollType {
+  CHOICE
+  AVAILABILITY
+  RANKING
+  RATING
+}
+
+enum PollTemplate {
+  EVENT_DATE
+  FEATURE_PRIORITY
+  OFFSITE_LOCATION
+  WORKSHOP_TOPIC
+  CUSTOM
+}
+
+enum ResultsVisibility {
+  PUBLIC
+  AFTER_VOTE
+  AFTER_CLOSE
+  OWNER_ONLY
+}
+
+model User {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  email        String   @unique @db.Citext
+  name         String
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  polls     Poll[]
+  responses PollResponse[]
+
+  @@map("users")
+}
+
+model Poll {
+  id                   String            @id @default(uuid(7)) @db.Uuid
+  creatorId            String            @map("creator_id") @db.Uuid
+  slug                 String            @unique
+  type                 PollType
+  template             PollTemplate      @default(CUSTOM)
+  title                String
+  description          String?
+  /// Type-specific settings, validated by the poll-type registry.
+  config               Json              @default("{}")
+  closesAt             DateTime?         @map("closes_at") @db.Timestamptz
+  closedAt             DateTime?         @map("closed_at") @db.Timestamptz
+  allowVoteChange      Boolean           @default(true) @map("allow_vote_change")
+  isAnonymous          Boolean           @default(false) @map("is_anonymous")
+  requireLogin         Boolean           @default(false) @map("require_login")
+  resultsVisibility    ResultsVisibility @default(PUBLIC) @map("results_visibility")
+  expectedParticipants Int?              @map("expected_participants")
+  createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+
+  creator   User           @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  options   PollOption[]
+  responses PollResponse[]
+
+  @@index([creatorId, createdAt(sort: Desc)])
+  @@map("polls")
+}
+
+model PollOption {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  pollId    String    @map("poll_id") @db.Uuid
+  label     String
+  position  Int
+  /// Only set for AVAILABILITY slots.
+  startsAt  DateTime? @map("starts_at") @db.Timestamptz
+  endsAt    DateTime? @map("ends_at") @db.Timestamptz
+  /// Compared with a response's updatedAt to spot options added after someone voted.
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  poll    Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@index([pollId, position])
+  @@map("poll_options")
+}
+
+model PollResponse {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  pollId     String   @map("poll_id") @db.Uuid
+  /// Anonymous per-browser identity from the voter_token cookie.
+  voterToken String   @map("voter_token")
+  voterName  String?  @map("voter_name")
+  comment    String?
+  userId     String?  @map("user_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  poll    Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  answers Answer[]
+
+  // One response per browser and per signed-in user. NULL user ids are
+  // distinct in Postgres, so guests are only constrained by voter_token.
+  @@unique([pollId, voterToken])
+  @@unique([pollId, userId])
+  @@index([pollId, createdAt])
+  @@map("responses")
+}
+
+/// value meaning depends on poll type: CHOICE 1 = selected, AVAILABILITY 2/1/0 =
+/// yes/if need be/no, RANKING = rank (1 is best), RATING = score.
+model Answer {
+  responseId String @map("response_id") @db.Uuid
+  optionId   String @map("option_id") @db.Uuid
+  value      Int
+
+  response PollResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  option   PollOption   @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@id([responseId, optionId])
+  @@index([optionId])
+  @@map("answers")
+}
