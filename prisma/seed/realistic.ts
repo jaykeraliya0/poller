@@ -6,6 +6,7 @@ import {
   COMMENTS,
   EMAIL_DOMAINS,
   FIRST_NAMES,
+  GROUP_NAMES,
   LAST_NAMES,
   RANKING_TOPICS,
   RATING_TOPICS,
@@ -29,6 +30,8 @@ export type RealisticOptions = {
 type OptionRow = { id: string; pollId: string; label: string; position: number; startsAt: Date | null; endsAt: Date | null; createdAt: Date };
 type ResponseRow = { id: string; pollId: string; voterToken: string; voterName: string | null; comment: string | null; userId: string | null; createdAt: Date; updatedAt: Date };
 type AnswerRow = { responseId: string; optionId: string; value: number };
+type GroupRow = { id: string; ownerId: string; name: string; createdAt: Date; updatedAt: Date };
+type MemberRow = { groupId: string; email: string; createdAt: Date };
 
 const SLUG_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz";
 
@@ -41,12 +44,20 @@ async function insertInChunks<T>(rows: T[], size: number, insert: (chunk: T[]) =
  * every type and state, and votes drawn from per-poll hidden preferences so
  * results have clear leaders, close races and the occasional tie.
  */
-export async function seedRealistic({ random, passwordHash, demoId, voterId, users: userCount = 250, polls: pollCount = 180 }: RealisticOptions) {
+export async function seedRealistic({ random, passwordHash, demoId, voterId, users: userCount = 600, polls: pollCount = 450 }: RealisticOptions) {
   const now = Date.now();
 
   // ---- Users --------------------------------------------------------------
   const emails = new Set(["demo@poller.dev", "voter@poller.dev"]);
-  const users: { id: string; email: string; name: string; passwordHash: string; createdAt: Date }[] = [];
+  const users: {
+    id: string;
+    email: string;
+    name: string;
+    passwordHash: string;
+    createdAt: Date;
+    emailVerifiedAt: Date;
+    emailNotifications: boolean;
+  }[] = [];
   while (users.length < userCount) {
     const first = random.pick(FIRST_NAMES);
     const last = random.pick(LAST_NAMES);
@@ -54,16 +65,54 @@ export async function seedRealistic({ random, passwordHash, demoId, voterId, use
     const email = `${base}${random.chance(0.3) ? random.int(1, 99) : ""}@${random.pick(EMAIL_DOMAINS)}`;
     if (emails.has(email)) continue;
     emails.add(email);
-    users.push({ id: random.uuid(), email, name: `${first} ${last}`, passwordHash, createdAt: new Date(now - random.int(20, 400) * DAY) });
+    const createdAt = new Date(now - random.int(20, 400) * DAY);
+    // Some of these domains are real: never send poll emails to generated people.
+    users.push({ id: random.uuid(), email, name: `${first} ${last}`, passwordHash, createdAt, emailVerifiedAt: createdAt, emailNotifications: false });
   }
   const names = new Map(users.map((user) => [user.id, user.name]));
   names.set(voterId, "Sam Voter");
   const everyone = [voterId, ...users.map((user) => user.id)];
+  const emailOf = new Map(users.map((user) => [user.id, user.email]));
+  emailOf.set(voterId, "voter@poller.dev");
+  const idByEmail = new Map([...emailOf].map(([id, email]) => [email, id]));
 
   // ---- Poll owners: a few power users, a long tail ------------------------
   const owners = random.sample(users, 60).map((user) => user.id);
   const ownerFor = (index: number) =>
     index < 16 ? demoId : random.weighted(owners.map((id, rank) => [id, 1 / (rank + 1)] as const));
+
+  // People invited before they signed up (example.com, so never a real inbox).
+  const pendingEmails = new Set<string>();
+  const pendingEmail = () => {
+    let email: string;
+    do email = `${random.pick(FIRST_NAMES)}.${random.pick(LAST_NAMES)}${random.int(1, 999)}@example.com`.toLowerCase().normalize("NFD").replace(/[^a-z0-9.@]/g, "");
+    while (pendingEmails.has(email));
+    pendingEmails.add(email);
+    return email;
+  };
+  const inviteesFor = (ownerId: string, min: number, max: number) => [
+    ...random.sample(everyone.filter((id) => id !== ownerId), random.int(min, max)).map((id) => emailOf.get(id)!),
+    ...Array.from({ length: random.int(0, 3) }, pendingEmail),
+  ];
+
+  // ---- Groups: the demo organiser and the busiest owners keep saved lists ----
+  const groups: GroupRow[] = [];
+  const members: MemberRow[] = [];
+  const groupsByOwner = new Map<string, { id: string; emails: string[] }[]>();
+  for (const ownerId of [demoId, ...owners.slice(0, 30)]) {
+    for (const name of random.sample(GROUP_NAMES, random.int(ownerId === demoId ? 3 : 1, ownerId === demoId ? 5 : 3))) {
+      const createdAt = new Date(now - random.int(30, 200) * DAY);
+      const emails = new Set(inviteesFor(ownerId, 4, 30));
+      // The demo voter is in most of the demo organiser's groups, so "Shared with me" has plenty in it.
+      if (ownerId === demoId && random.chance(0.7)) emails.add("voter@poller.dev");
+      const group = { id: random.uuid(), ownerId, name, createdAt, updatedAt: createdAt };
+      groups.push(group);
+      members.push(...[...emails].map((email) => ({ groupId: group.id, email, createdAt })));
+      groupsByOwner.set(ownerId, [...(groupsByOwner.get(ownerId) ?? []), { id: group.id, emails: [...emails] }]);
+    }
+  }
+  const pollGroups: { pollId: string; groupId: string; createdAt: Date }[] = [];
+  const invites: { id: string; pollId: string; email: string; createdAt: Date }[] = [];
 
   const slugs = new Set<string>();
   const newSlug = () => {
@@ -81,6 +130,7 @@ export async function seedRealistic({ random, passwordHash, demoId, voterId, use
 
   for (let index = 0; index < pollCount; index++) {
     const pollId = random.uuid();
+    const creatorId = ownerFor(index);
     const type = random.weighted<PollType>([["CHOICE", 35], ["AVAILABILITY", 25], ["RANKING", 20], ["RATING", 20]]);
 
     // ---- Lifecycle ----------------------------------------------------------
@@ -106,7 +156,25 @@ export async function seedRealistic({ random, passwordHash, demoId, voterId, use
 
     // Mostly small teams, a few company-wide polls, and some near-empty ones (edge cases).
     const bucket = random.weighted([[[0, 0], 3], [[1, 2], 5], [[3, 12], 35], [[13, 40], 37], [[41, 120], 15], [[121, 320], 5]] as const);
-    const count = Math.min(random.int(bucket[0], bucket[1]), requireLogin ? everyone.length : Infinity);
+    let count = Math.min(random.int(bucket[0], bucket[1]), requireLogin ? everyone.length : Infinity);
+
+    // ---- Private polls: invited people only, directly or through groups ------
+    const isPrivate = random.chance(creatorId === demoId ? 0.35 : 0.2);
+    let invitedAccounts: string[] = [];
+    if (isPrivate) {
+      const ownerGroups = groupsByOwner.get(creatorId) ?? [];
+      const linked = ownerGroups.length > 0 && random.chance(0.75) ? random.sample(ownerGroups, random.int(1, Math.min(2, ownerGroups.length))) : [];
+      const direct = [...new Set(inviteesFor(creatorId, linked.length > 0 ? 0 : 3, 12))];
+      pollGroups.push(...linked.map((group) => ({ pollId, groupId: group.id, createdAt })));
+      invites.push(...direct.map((email) => ({ id: random.uuid(), pollId, email, createdAt })));
+      const invited = new Set([...direct, ...linked.flatMap((group) => group.emails)]);
+      invitedAccounts = [...invited].flatMap((email) => {
+        const id = idByEmail.get(email);
+        return id && id !== creatorId ? [id] : [];
+      });
+      // Most invitees vote; the rest are who reminders are for.
+      count = Math.round(invitedAccounts.length * (0.3 + random.next() * 0.7));
+    }
     const expectedParticipants = random.chance(0.6) ? Math.max(1, Math.round(count * (0.85 + random.next() * 0.9))) : null;
 
     // ---- Topic, config and options -----------------------------------------
@@ -175,7 +243,8 @@ export async function seedRealistic({ random, passwordHash, demoId, voterId, use
 
     polls.push({
       id: pollId,
-      creatorId: ownerFor(index),
+      creatorId,
+      visibility: isPrivate ? "PRIVATE" : "PUBLIC",
       slug: newSlug(),
       type,
       template,
@@ -184,6 +253,9 @@ export async function seedRealistic({ random, passwordHash, demoId, voterId, use
       config,
       closesAt,
       closedAt,
+      // Seeded polls count as already emailed, so the first scheduled run doesn't send a burst about old data.
+      resultsEmailedAt: state === "closed" ? new Date(votingEnd) : null,
+      autoRemindedAt: state === "closingSoon" ? createdAt : null,
       allowVoteChange: random.chance(0.8),
       isAnonymous,
       requireLogin,
@@ -203,8 +275,9 @@ export async function seedRealistic({ random, passwordHash, demoId, voterId, use
     const ratingMean = new Map(pollOptions.map((option) => [option.id, (1.8 + random.next() * 2.8) * (scale / 5)]));
 
     // ---- Voters -------------------------------------------------------------
-    const registeredShare = requireLogin ? 1 : 0.35;
-    const accounts = random.sample(everyone, Math.round(count * registeredShare));
+    // Private polls need an account (and an invite) to vote.
+    const registeredShare = requireLogin || isPrivate ? 1 : 0.35;
+    const accounts = random.sample(isPrivate ? invitedAccounts : everyone, Math.round(count * registeredShare));
     for (let n = 0; n < count; n++) {
       const userId = accounts[n] ?? null;
       // Front-loaded arrivals: most votes come soon after the poll is shared.
@@ -274,6 +347,19 @@ export async function seedRealistic({ random, passwordHash, demoId, voterId, use
   await insertInChunks(options, 2000, (data) => db.pollOption.createMany({ data }));
   await insertInChunks(responses, 2000, (data) => db.pollResponse.createMany({ data }));
   await insertInChunks(answers, 5000, (data) => db.answer.createMany({ data }));
+  await insertInChunks(groups, 500, (data) => db.group.createMany({ data }));
+  await insertInChunks(members, 2000, (data) => db.groupMember.createMany({ data }));
+  await insertInChunks(pollGroups, 2000, (data) => db.pollGroup.createMany({ data }));
+  await insertInChunks(invites, 2000, (data) => db.pollInvite.createMany({ data }));
 
-  return { users: users.length, polls: polls.length, options: options.length, responses: responses.length, answers: answers.length };
+  return {
+    users: users.length,
+    polls: polls.length,
+    privatePolls: polls.filter((poll) => poll.visibility === "PRIVATE").length,
+    groups: groups.length,
+    invites: invites.length + members.length,
+    options: options.length,
+    responses: responses.length,
+    answers: answers.length,
+  };
 }

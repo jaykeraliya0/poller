@@ -18,14 +18,17 @@ export const authConfig = {
     },
   },
   callbacks: {
-    // Keep the token minimal: user id (sub) and display name only.
+    // Keep the token minimal: user id (sub), display name, and when they signed in.
+    // `authAt` survives token refreshes (unlike `iat`), so a password reset can
+    // reject every session that signed in before it.
     jwt({ token, user }) {
-      if (user?.id) return { sub: user.id, name: user.name };
+      if (user?.id) return { sub: user.id, name: user.name, authAt: Date.now() };
       return token;
     },
     session({ session, token }) {
       if (token.sub) session.user.id = token.sub;
       session.user.name = token.name ?? "";
+      session.authAt = typeof token.authAt === "number" ? token.authAt : null;
       return session;
     },
   },

@@ -2,7 +2,7 @@
 
 A polling + insights app for small groups making a decision together: when to meet, what to build next, where the offsite goes, which workshop to run. Create a poll in a minute, share a link, and get **insights, not just counts**: "Fri 6pm works for 5/6 people (+1 if need be)", who's leading and by how much, whether the group agrees or is split, and what people said.
 
-Built with **Next.js 16** (App Router, Server Actions), **shadcn/ui** (Base UI), **Tailwind CSS v4**, **PostgreSQL** via **Prisma 7**, **Auth.js v5** and **Redis** (rate limiting only).
+Built with **Next.js 16** (App Router, Server Actions), **shadcn/ui** (Base UI), **Tailwind CSS v4**, **PostgreSQL** via **Prisma 7**, **Auth.js v5**, **Redis** (rate limiting only) and **Resend** (email).
 
 ---
 
@@ -33,11 +33,13 @@ Built with **Next.js 16** (App Router, Server Actions), **shadcn/ui** (Base UI),
 
 **For the organiser:** templates for the four use cases, a dashboard, a live manage page (refreshes every 15 s), share link / native share sheet, deadline and close/reopen, anonymous or named voting, "require sign-in", results visibility (public / after voting / after close / owner only), **private polls** open only to people invited by email or through a **group** (a creator's own saved list of people, live-linked so membership changes apply straight away), expected-participants response rate, editing while the poll is open, CSV export, and deleting polls or the account.
 
+**Email (via Resend):** confirm your address after signing up (you need it to create polls, and private-poll invites only count for confirmed addresses), reset a forgotten password (signs out every other session), invitation emails when someone is invited to a private poll directly or through a group (once per person per poll), a *remind people who haven't voted* button for private polls (once per 12 h) plus an automatic reminder a day before the deadline, and a *results are in* email to the owner and everyone who voted from an account when a poll closes. Poll emails can be turned off in Settings; account emails can't.
+
 **For voters:** no account needed (unless the organiser requires one or the poll is private), a *Shared with me* list of private polls they've been invited to, change or withdraw a vote while the poll is open, and land on the results straight after voting when allowed.
 
 **Demo data:**
 - `pnpm db:seed`: small and fast. Creates `demo@poller.dev` (organiser) and `voter@poller.dev` (password `password123` for both), plus one showcase poll per type, a closed poll, and a private poll shared with a "Leadership team" group that the voter account belongs to.
-- `pnpm db:seed:large`: **wipes the database** and loads the showcase plus a realistic dataset of ~250 users, ~185 polls and ~7,000 votes (~25,000 answers). Votes come from per-poll hidden preferences, so there are clear winners, close races, ties, polarised ratings, empty and near-empty polls, and options added mid-vote. It's deterministic (seeded) and every generated user's password is `password123`.
+- `pnpm db:seed:large`: **wipes the database** and loads the showcase plus a realistic dataset of ~600 users, ~450 polls (~95 private), ~60 groups, ~1,800 invites and group memberships and ~14,500 votes (~48,000 answers). Votes come from per-poll hidden preferences, so there are clear winners, close races, ties, polarised ratings, empty and near-empty polls, and options added mid-vote. Private polls are shared through groups and direct invites (some to people who haven't signed up yet), and only invitees vote on them, so reminders have someone left to nudge. Every account's email is confirmed, generated users have poll emails turned off (some of their domains are real), and seeded polls count as already emailed, so the first scheduled email run doesn't send a burst about old data. It's deterministic (seeded) and every generated user's password is `password123`.
 
 ## Quick start
 
@@ -52,13 +54,26 @@ createdb -T template0 poller_dev
 createdb -T template0 poller_shadow
 createdb -T template0 poller_test
 
-cp .env.example .env          # then set AUTH_SECRET: openssl rand -base64 32
+cp .env.example .env          # then set AUTH_SECRET (and CRON_SECRET): openssl rand -base64 32
 pnpm db:migrate               # applies migrations + generates the Prisma client
 pnpm db:seed                  # optional demo data
 pnpm dev                      # http://localhost:3000
 ```
 
 The app runs without Redis: rate limiting fails open with a logged warning.
+
+### Email
+
+Emails go through [Resend](https://resend.com). Set `RESEND_API_KEY` and an `EMAIL_FROM` on a domain you've verified in Resend. Without an API key, emails are printed to the server console instead, so you can follow confirmation and reset links locally. Tests never send: they capture emails in memory.
+
+Invitation, verification, reset, manual-reminder and manual-close emails send straight after the action responds (Next's `after()`). **Automatic reminders and deadline results emails need a scheduler** to call the cron endpoint every few minutes:
+
+```bash
+# e.g. crontab: every 5 minutes
+*/5 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/cron/emails"
+```
+
+On Vercel, a Cron Job pointed at `/api/cron/emails` sends the same header automatically when `CRON_SECRET` is set. Each send is claimed in the database first, so overlapping or repeated runs never double-send. A poll whose deadline passed more than 24 hours before the job ran doesn't get a results email.
 
 ### Scripts
 
@@ -80,9 +95,11 @@ One Next.js app is both UI and backend. **Postgres is the only source of truth**
 
 ```mermaid
 flowchart LR
-  B["Browser (mobile first)"] -- "HTTPS: pages + Server Actions" --> N["Next.js app<br/>Server Components, Server Actions,<br/>1 Route Handler (CSV)"]
+  B["Browser (mobile first)"] -- "HTTPS: pages + Server Actions" --> N["Next.js app<br/>Server Components, Server Actions,<br/>Route Handlers (CSV, email link, cron)"]
   N -- Prisma 7 + pg adapter --> P[(PostgreSQL)]
   N -- "ioredis: rate limits only<br/>(fails open)" --> R[(Redis)]
+  N -- "after() / cron" --> E["Resend (email)"]
+  C["Scheduler"] -- "GET /api/cron/emails" --> N
   B -. "router.refresh() every 15s<br/>while visible & open" .-> N
 ```
 
@@ -98,18 +115,20 @@ flowchart LR
 - **Vote:** rate limits (30/min/IP, 5/min/poll/IP) → load poll → private and not invited? open? sign-in rule? answers valid for *this* poll's options? → transaction: find the viewer's response (account first, then browser token) → update or insert → results page.
 - **Results:** `canViewResults` (permission matrix below) → load responses → `computeInsights` (common + type-specific) → summary, charts, analysis (standings over time, turnout, type-specific breakdowns), comments, who-voted list.
 - **Invite / groups:** owner check → rate limit (30/h/user) → parse a pasted email list (all-or-nothing, deduped, lowercased) → insert, skipping existing ones. A poll can only link groups owned by its creator.
-- **Close/reopen:** owner check → conditional update (so two concurrent closes can't both succeed). Reopening after the deadline has passed needs a new deadline (or none).
+- **Close/reopen:** owner check → conditional update (so two concurrent closes can't both succeed) → results email. Reopening after the deadline has passed needs a new deadline (or none), and re-arms the automatic reminder and results email.
+- **Emails:** every send first claims its slot with a conditional write (`poll_invite_emails` row, `reminded_at`, `auto_reminded_at`, `results_emailed_at`), then sends. Link tokens are 32 random bytes; only their SHA-256 is stored, each works once, and issuing a new one voids the old.
 - **Edit:** owner check → closed polls are refused (`POLL_CLOSED`; reopen first) → validate → vote-aware locks → transaction whose poll update only applies while the poll is still open.
 
 ### Permission matrix
 
 | Action | Guest | Signed-in voter | Owner |
 |---|---|---|---|
-| Open a **private** poll at all | No (asked to sign in) | Only if invited directly or via a linked group | Yes |
+| Open a **private** poll at all | No (asked to sign in) | Only if invited directly or via a linked group, **and** their email is confirmed | Yes |
 | View vote page / vote | Yes, unless *require sign-in* | Yes | Yes (counts like anyone) |
 | Change or withdraw own vote | If vote changes allowed and poll open | same | same |
 | View results | Per *results visibility* | same | Always |
 | See voter names | Named polls, when results are visible | same | Named polls only |
+| Create a poll | No | Once their email is confirmed | — |
 | Manage, edit, close, export, delete, invite | No | No | Yes |
 | See or manage a group | No | No | Its owner only |
 
@@ -126,6 +145,8 @@ erDiagram
   responses ||--|{ answers : contains
   poll_options ||--o{ answers : "is answered in"
   polls ||--o{ poll_invites : "invites (private)"
+  polls ||--o{ poll_invite_emails : "invite emails sent"
+  users ||--o{ email_tokens : "link tokens"
   users ||--o{ groups : owns
   groups ||--o{ group_members : has
   polls ||--o{ poll_groups : "shared with"
@@ -136,6 +157,21 @@ erDiagram
     citext email UK
     text name
     text password_hash
+    timestamptz email_verified_at
+    timestamptz password_changed_at
+    bool email_notifications
+  }
+  email_tokens {
+    uuid id PK
+    uuid user_id FK
+    EmailTokenPurpose purpose
+    text token_hash UK
+    timestamptz expires_at
+    timestamptz used_at
+  }
+  poll_invite_emails {
+    uuid poll_id PK
+    citext email PK
   }
   polls {
     uuid id PK
@@ -152,6 +188,9 @@ erDiagram
     ResultsVisibility results_visibility
     PollVisibility visibility
     int expected_participants
+    timestamptz reminded_at
+    timestamptz auto_reminded_at
+    timestamptz results_emailed_at
   }
   poll_invites {
     uuid id PK
@@ -200,6 +239,7 @@ erDiagram
 - **`polls.config`** holds type-specific settings (multi-select limit, time zone, top-N, scale), validated by the type's schema.
 - **`poll_options.created_at`** lets the app spot options added after someone voted.
 - **Invites and group members are emails, not user ids** (`citext`, like `users.email`), so people can be invited before they sign up, and access is checked against the signed-in account's email. `UNIQUE(owner_id, name)` keeps a creator's group names distinct.
+- **Only confirmed emails match invites.** `users.email_verified_at` is set by the confirmation link (or a password reset, which proves the same thing). `users.password_changed_at` is compared with the sign-in time stored in the session, so a reset signs out every older session.
 - CHECK constraints back up the app's own validation (positive expected participants, slots that end after they start).
 
 ## Project structure
@@ -281,11 +321,12 @@ Every case from the design doc has defined behaviour and a test.
 
 ## Security & accessibility
 
-- **Auth:** argon2id hashes; unknown email and wrong password take the same time and give the same message; the JWT holds only user id + name; `requireUser` re-checks the account exists, so deleted accounts lose access immediately.
+- **Auth:** argon2id hashes; unknown email and wrong password take the same time and give the same message; the JWT holds only user id, name and sign-in time; `requireUser` re-checks the account exists and that the session started after the last password reset, so deleted accounts and pre-reset sessions lose access immediately.
+- **Email links:** single-use, hashed at rest, short-lived (confirmation 48 h, reset 1 h); "forgot password" gives the same answer whether or not the account exists and sends after responding, so neither message nor timing reveals accounts; pages reached from links send no referrer.
 - **Authorization** in every action, page and route handler; the proxy is only an optimistic redirect layer.
 - **Input:** Zod everywhere, answers validated against the poll's own option ids, `?next=` redirects restricted to same-origin paths, CSV cells escaped against formula injection.
 - **Headers:** `nosniff`, `frame-ancestors 'none'` / `X-Frame-Options: DENY`, strict referrer policy, restrictive permissions policy, no `X-Powered-By`.
-- **Abuse:** Redis sliding-window rate limits on login (10/15 min/IP), register (5/h/IP), create (10/h/user), vote (30/min/IP, 5/min/poll/IP), invites and group members (30/h/user).
+- **Abuse:** Redis sliding-window rate limits on login (10/15 min/IP), register (5/h/IP), create (10/h/user), vote (30/min/IP, 5/min/poll/IP), invites and group members (30/h/user), forgot password (5/15 min/IP and 3/h/address), reset submissions (10/15 min/IP), resending confirmation (3/h/user); manual reminders once per 12 h per poll.
 - **Accessibility:** axe WCAG 2.2 AA scans of every main screen pass in light *and* dark mode; ≥ 40–44 px tap targets on phones; labelled controls with errors linked via `aria-describedby`; status never shown by colour alone (icons + text); a skip link; the live indicator respects reduced motion; chart colours are a single-hue ramp for magnitude plus a small categorical set for multi-series charts, both validated for contrast and colour-blind separation in both themes; every chart has a legend with values, cell numbers or a screen-reader table, so colour is never the only channel.
 
 ## Decisions & trade-offs
@@ -307,6 +348,7 @@ Every case from the design doc has defined behaviour and a test.
 - **Guest voting is per browser.** Clearing cookies or switching browsers allows another vote. Use *Require sign-in to vote* when that matters.
 - **Rate limits trust `x-forwarded-for`.** Deploy behind a proxy that sets it; without one, clients can spoof it.
 - **No nonce-based Content-Security-Policy yet** (only `frame-ancestors`). A full CSP is the next hardening step for production.
-- **No email features** (verification, password reset, invitation emails): out of scope for this version. Invitees find private polls under *Shared with me* or through a link from the organiser.
-- **Private-poll access trusts the account's email.** There's no email verification, so whoever registers an invited address first gets that invite.
+- **Automatic emails need a scheduler.** Reminders before a deadline and results after one are sent by `/api/cron/emails`; without something calling it, only emails triggered by an action go out.
+- **Reminders are for private polls only**, since public polls don't have a list of who was invited. Results emails go only to people who voted from an account with a confirmed email.
+- **Accounts from before email verification start unconfirmed** and must follow a confirmation link (Settings → Resend) before their private-poll invites count again.
 - **Local/demo setup only:** there is no deploy pipeline.

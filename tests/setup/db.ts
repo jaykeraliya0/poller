@@ -5,16 +5,22 @@ import { createSlug } from "@/lib/poll/slug";
 /** Wipes every table between tests. Order-independent thanks to CASCADE. */
 export async function resetDatabase() {
   await db.$executeRawUnsafe(
-    'TRUNCATE TABLE "answers", "responses", "poll_options", "poll_invites", "poll_groups", "group_members", "groups", "polls", "users" RESTART IDENTITY CASCADE',
+    'TRUNCATE TABLE "answers", "responses", "poll_options", "poll_invites", "poll_invite_emails", "poll_groups", "email_tokens", "group_members", "groups", "polls", "users" RESTART IDENTITY CASCADE',
   );
 }
 
 let seq = 0;
 
-export async function createUser(name = "Test User") {
+/** Users have confirmed their email unless a test says otherwise. */
+export async function createUser(name = "Test User", { verified = true }: { verified?: boolean } = {}) {
   seq += 1;
   return db.user.create({
-    data: { email: `user${seq}-${Date.now()}@example.com`, name, passwordHash: "not-a-real-hash" },
+    data: {
+      email: `user${seq}-${Date.now()}@example.com`,
+      name,
+      passwordHash: "not-a-real-hash",
+      emailVerifiedAt: verified ? new Date() : null,
+    },
   });
 }
 

@@ -16,6 +16,13 @@ export const RATE_LIMITS = {
   "vote-poll": { limit: 5, windowMs: MINUTE },
   /** Adding invites or group members, per user. */
   invite: { limit: 30, windowMs: HOUR },
+  /** "Forgot password" requests, per IP and separately per email address. */
+  "reset-ip": { limit: 5, windowMs: 15 * MINUTE },
+  "reset-email": { limit: 3, windowMs: HOUR },
+  /** Setting a new password from a reset link, per IP. */
+  "reset-submit": { limit: 10, windowMs: 15 * MINUTE },
+  /** Resending the confirmation email, per user. */
+  "verify-email": { limit: 3, windowMs: HOUR },
 } as const;
 
 export type RateLimitScope = keyof typeof RATE_LIMITS;

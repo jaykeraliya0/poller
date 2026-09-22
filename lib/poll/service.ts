@@ -169,7 +169,8 @@ export async function reopenPoll(pollId: string, input: unknown = {}, now: Date 
   // Conditional update, like closePoll, so a concurrent close or reopen isn't silently overwritten.
   const { count } = await db.poll.updateMany({
     where: { id: pollId, closedAt: poll.closedAt, closesAt: poll.closesAt },
-    data: { closedAt: null, ...(closesAt !== undefined && { closesAt }) },
+    // A fresh round of voting earns a fresh reminder and, on the next close, fresh results.
+    data: { closedAt: null, autoRemindedAt: null, resultsEmailedAt: null, ...(closesAt !== undefined && { closesAt }) },
   });
   if (count === 0) throw new AppError(ErrorCode.CONFLICT, "This poll just changed. Reload and try again.");
   return poll;
@@ -230,6 +231,8 @@ export async function updatePoll(pollId: string, input: unknown, now: Date = new
         description: description ?? null,
         ...(!hasVotes && { config }),
         ...settings,
+        // A moved deadline gets its own reminder.
+        ...(settings.closesAt?.getTime() !== existing.closesAt?.getTime() && { autoRemindedAt: null }),
       },
     });
     if (count === 0) throw new AppError(ErrorCode.POLL_CLOSED, CLOSED_EDIT_MESSAGE);

@@ -35,15 +35,22 @@ enum ResultsVisibility {
 }
 
 model User {
-  id           String   @id @default(uuid(7)) @db.Uuid
-  email        String   @unique @db.Citext
-  name         String
-  passwordHash String   @map("password_hash")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  email              String    @unique @db.Citext
+  name               String
+  passwordHash       String    @map("password_hash")
+  /// Set once the user follows a link sent to their address. Private-poll invites only match verified emails.
+  emailVerifiedAt    DateTime? @map("email_verified_at") @db.Timestamptz
+  /// Sessions signed in before this are rejected, so a password reset signs out every device.
+  passwordChangedAt  DateTime? @map("password_changed_at") @db.Timestamptz
+  /// Poll emails (invites, reminders, results). Account emails (verification, reset) always send.
+  emailNotifications Boolean   @default(true) @map("email_notifications")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  polls     Poll[]
-  responses PollResponse[]
-  groups    Group[]
+  polls       Poll[]
+  responses   PollResponse[]
+  groups      Group[]
+  emailTokens EmailToken[]
 
   @@map("users")
 }
@@ -67,14 +74,21 @@ model Poll {
   /// PRIVATE polls are open only to the creator, direct invites and members of linked groups.
   visibility           PollVisibility    @default(PUBLIC)
   expectedParticipants Int?              @map("expected_participants")
+  /// Last manual "remind people who haven't voted", for the cooldown.
+  remindedAt           DateTime?         @map("reminded_at") @db.Timestamptz
+  /// The automatic reminder before the deadline. Cleared when the deadline moves.
+  autoRemindedAt       DateTime?         @map("auto_reminded_at") @db.Timestamptz
+  /// The "poll closed" email. Cleared on reopen, so closing again sends fresh results.
+  resultsEmailedAt     DateTime?         @map("results_emailed_at") @db.Timestamptz
   createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz
   updatedAt            DateTime          @updatedAt @map("updated_at") @db.Timestamptz
 
-  creator   User           @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  options   PollOption[]
-  responses PollResponse[]
-  invites   PollInvite[]
-  groups    PollGroup[]
+  creator      User              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  options      PollOption[]
+  responses    PollResponse[]
+  invites      PollInvite[]
+  groups       PollGroup[]
+  inviteEmails PollInviteEmail[]
 
   @@index([creatorId, createdAt(sort: Desc)])
   @@map("polls")
@@ -191,4 +205,37 @@ model PollGroup {
   @@id([pollId, groupId])
   @@index([groupId])
   @@map("poll_groups")
+}
+
+/// Addresses already emailed about a poll invite, so direct invites and groups never email someone twice.
+model PollInviteEmail {
+  pollId    String   @map("poll_id") @db.Uuid
+  email     String   @db.Citext
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  poll Poll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@id([pollId, email])
+  @@map("poll_invite_emails")
+}
+
+enum EmailTokenPurpose {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+/// Single-use link tokens. Only a SHA-256 hash is stored; the raw token lives in the email.
+model EmailToken {
+  id        String            @id @default(uuid(7)) @db.Uuid
+  userId    String            @map("user_id") @db.Uuid
+  purpose   EmailTokenPurpose
+  tokenHash String            @unique @map("token_hash")
+  expiresAt DateTime          @map("expires_at") @db.Timestamptz
+  usedAt    DateTime?         @map("used_at") @db.Timestamptz
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@map("email_tokens")
 }

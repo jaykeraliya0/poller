@@ -8,12 +8,15 @@ import { PollResults } from "@/components/insights/poll-results";
 import { AccessPanel } from "@/components/poll/access-panel";
 import { PollHeader } from "@/components/poll/poll-header";
 import { PollMoreMenu } from "@/components/poll/poll-more-menu";
+import { ReminderControl } from "@/components/poll/reminder-control";
 import { ClosePollDialog, ReopenPollButton } from "@/components/poll/poll-status-controls";
 import { SharePanel } from "@/components/poll/share-panel";
 import { ShareSheet } from "@/components/poll/share-sheet";
 import { ButtonLink } from "@/components/shared/button-link";
 import { requirePageOwner } from "@/lib/auth/guards";
+import { formatRelative } from "@/lib/datetime";
 import { db } from "@/lib/db";
+import { getReminderStatus } from "@/lib/email/poll-emails";
 import { listPollAccess } from "@/lib/poll/invites";
 import { loadPollResults } from "@/lib/poll/results";
 import { deadlinePassed, isPollOpen } from "@/lib/poll/status";
@@ -33,9 +36,10 @@ export default async function ManagePollPage({ params, searchParams }: PageProps
   const now = new Date();
   const open = isPollOpen(poll, now);
   const isPrivate = poll.visibility === "PRIVATE";
-  const [{ insights, rows }, access] = await Promise.all([
+  const [{ insights, rows }, access, reminders] = await Promise.all([
     loadPollResults(poll, now),
     isPrivate ? listPollAccess(poll) : null,
+    isPrivate && open ? getReminderStatus(poll, now) : null,
   ]);
   const shareUrl = pollShareUrl(poll.slug);
   const linkDescription = isPrivate ? "Only people you invite can open it." : "Anyone with the link can vote.";
@@ -48,7 +52,16 @@ export default async function ManagePollPage({ params, searchParams }: PageProps
       count={access.invites.length + access.groups.filter((group) => group.linked).length || undefined}
       description="Only these people (and you) can open this poll."
     >
-      <AccessPanel pollId={poll.id} access={access} />
+      <div className="flex flex-col gap-6">
+        {reminders && (
+          <ReminderControl
+            pollId={poll.id}
+            pending={reminders.pending}
+            nextReminderIn={reminders.nextReminderAt && formatRelative(reminders.nextReminderAt, now)}
+          />
+        )}
+        <AccessPanel pollId={poll.id} access={access} />
+      </div>
     </BoardSection>
   );
 

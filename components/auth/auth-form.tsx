@@ -58,6 +58,15 @@ export function AuthForm({ mode, next }: AuthFormProps) {
         />
       </FieldGroup>
 
+      {!isRegister && (
+        <Link
+          href="/forgot-password"
+          className="-mt-2 self-end text-sm font-medium text-signal-ink underline-offset-4 hover:underline"
+        >
+          Forgot password?
+        </Link>
+      )}
+
       <SubmitButton pendingLabel={isRegister ? "Creating account…" : "Signing in…"}>
         {isRegister ? "Create account" : "Sign in"}
       </SubmitButton>

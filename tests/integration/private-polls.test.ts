@@ -16,9 +16,10 @@ const as = (user: User): VoterIdentity => ({
   userId: user.id,
   userName: user.name,
   userEmail: user.email,
+  userEmailVerified: true,
   voterToken: crypto.randomUUID(),
 });
-const guest = (): VoterIdentity => ({ userId: null, userName: null, userEmail: null, voterToken: crypto.randomUUID() });
+const guest = (): VoterIdentity => ({ userId: null, userName: null, userEmail: null, userEmailVerified: false, voterToken: crypto.randomUUID() });
 
 const listParams = { filter: "all", q: "", page: 1 } as const;
 
@@ -95,8 +96,8 @@ describe("managing invites", () => {
 
   it("skips duplicates and the owner's own address, and reports who has an account", async () => {
     const joined = await createUser("Joined");
-    await expect(addInvites(poll, `${joined.email}, new@example.com, ${owner.email}`)).resolves.toEqual({ added: 2 });
-    await expect(addInvites(poll, "NEW@example.com")).resolves.toEqual({ added: 0 });
+    await expect(addInvites(poll, `${joined.email}, new@example.com, ${owner.email}`)).resolves.toMatchObject({ added: 2 });
+    await expect(addInvites(poll, "NEW@example.com")).resolves.toMatchObject({ added: 0 });
 
     const access = await listPollAccess(poll);
     expect(access.invites.map(({ email, hasAccount }) => ({ email, hasAccount }))).toEqual([
@@ -168,7 +169,7 @@ describe("groups", () => {
   it("dedupes members", async () => {
     const owner = await createUser("Owner");
     const group = await createGroup(owner.id, { name: "Team", emails: "a@example.com" });
-    await expect(addMembers(group.id, "A@example.com b@example.com")).resolves.toEqual({ added: 1 });
+    await expect(addMembers(group.id, "A@example.com b@example.com")).resolves.toMatchObject({ added: 1 });
     expect(await db.groupMember.count({ where: { groupId: group.id } })).toBe(2);
   });
 });

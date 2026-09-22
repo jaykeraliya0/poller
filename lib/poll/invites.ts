@@ -8,7 +8,7 @@ const idSchema = z.uuid();
 
 /**
  * Invites a pasted list of emails. Already-invited addresses and the owner's
- * own are skipped. Returns how many new invites were created.
+ * own are skipped. Returns the newly invited addresses.
  */
 export async function addInvites(poll: { id: string; creatorId: string }, rawEmails: unknown) {
   const parsed = parseEmailList(rawEmails);
@@ -26,11 +26,12 @@ export async function addInvites(poll: { id: string; creatorId: string }, rawEma
         fieldErrors: { emails: [`A poll can have up to ${EMAIL_LIST_LIMITS.invitesPerPoll} direct invites. Use a group for more.`] },
       });
     }
-    const { count } = await tx.pollInvite.createMany({
+    const created = await tx.pollInvite.createManyAndReturn({
       data: fresh.map((email) => ({ pollId: poll.id, email })),
       skipDuplicates: true,
+      select: { email: true },
     });
-    return { added: count };
+    return { added: created.length, emails: created.map((invite) => invite.email) };
   });
 }
 
@@ -40,7 +41,10 @@ export async function removeInvite(pollId: string, inviteId: unknown) {
   if (count === 0) throw new AppError(ErrorCode.NOT_FOUND, "That invite no longer exists.");
 }
 
-/** Replaces the groups shared with a poll. Every group must belong to the poll's creator. */
+/**
+ * Replaces the groups shared with a poll. Every group must belong to the
+ * poll's creator. Returns the ids of groups that weren't linked before.
+ */
 export async function setPollGroups(poll: { id: string; creatorId: string }, groupIds: unknown) {
   const ids = z.array(z.uuid()).max(100).safeParse(groupIds);
   if (!ids.success) throw new AppError(ErrorCode.NOT_FOUND, "Some of those groups no longer exist.");
@@ -49,10 +53,15 @@ export async function setPollGroups(poll: { id: string; creatorId: string }, gro
   const owned = await db.group.count({ where: { id: { in: unique }, ownerId: poll.creatorId } });
   if (owned !== unique.length) throw new AppError(ErrorCode.NOT_FOUND, "Some of those groups no longer exist.");
 
-  await db.$transaction([
+  const [, linked] = await db.$transaction([
     db.pollGroup.deleteMany({ where: { pollId: poll.id, groupId: { notIn: unique } } }),
-    db.pollGroup.createMany({ data: unique.map((groupId) => ({ pollId: poll.id, groupId })), skipDuplicates: true }),
+    db.pollGroup.createManyAndReturn({
+      data: unique.map((groupId) => ({ pollId: poll.id, groupId })),
+      skipDuplicates: true,
+      select: { groupId: true },
+    }),
   ]);
+  return { linked: linked.map((link) => link.groupId) };
 }
 
 export type PollAccess = Awaited<ReturnType<typeof listPollAccess>>;

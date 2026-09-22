@@ -107,6 +107,13 @@ describe("createPollAction", () => {
     expect(await db.poll.count()).toBe(0);
   });
 
+  it("requires a confirmed email", async () => {
+    await db.user.update({ where: { id: userId }, data: { emailVerifiedAt: null } });
+    const { failure } = await submit(choiceSubmission);
+    expect(failure).toMatchObject({ code: "EMAIL_UNVERIFIED", message: "Confirm your email address to create polls." });
+    expect(await db.poll.count()).toBe(0);
+  });
+
   it("rate limits poll creation to 10 per hour per user", async () => {
     for (let i = 0; i < 10; i++) expect((await submit(choiceSubmission)).redirectTo).toBeDefined();
     const { failure } = await submit(choiceSubmission);

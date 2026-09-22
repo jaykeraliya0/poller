@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/guards";
+import { deferEmail } from "@/lib/email/defer";
+import { claimManualReminder, notifyInvitees, notifyLinkedGroupMembers, sendClaimedReminders } from "@/lib/email/poll-emails";
 import { ok, toActionFailure, type ActionResult } from "@/lib/errors";
 import { addInvites, removeInvite, setPollGroups } from "@/lib/poll/invites";
 import { enforceRateLimit } from "@/lib/rate-limit";
@@ -17,9 +19,10 @@ export async function addInvitesAction(pollId: string, emails: string): Promise<
   try {
     const { user, poll } = await requireOwner(pollId);
     await enforceRateLimit("invite", user.id);
-    const result = await addInvites(poll, emails);
+    const { added, emails: invited } = await addInvites(poll, emails);
+    deferEmail("invite", () => notifyInvitees(poll.id, invited));
     revalidateAccess(poll.id, poll.slug);
-    return ok(result);
+    return ok({ added });
   } catch (error) {
     return toActionFailure(error);
   }
@@ -39,10 +42,24 @@ export async function removeInviteAction(pollId: string, inviteId: string): Prom
 export async function setPollGroupsAction(pollId: string, groupIds: string[]): Promise<ActionResult> {
   try {
     const { poll } = await requireOwner(pollId);
-    await setPollGroups(poll, groupIds);
+    const { linked } = await setPollGroups(poll, groupIds);
+    deferEmail("group invite", () => notifyLinkedGroupMembers(poll.id, linked));
     revalidateAccess(poll.id, poll.slug);
     revalidatePath("/groups/[id]", "page");
     return ok();
+  } catch (error) {
+    return toActionFailure(error);
+  }
+}
+
+/** Emails everyone invited who hasn't voted yet. Limited to one reminder per 12 hours. */
+export async function sendRemindersAction(pollId: string): Promise<ActionResult<{ pending: number }>> {
+  try {
+    const { poll } = await requireOwner(pollId);
+    const result = await claimManualReminder(poll);
+    deferEmail("reminder", () => sendClaimedReminders(poll.id));
+    revalidatePath(`/polls/${poll.id}/manage`);
+    return ok(result);
   } catch (error) {
     return toActionFailure(error);
   }

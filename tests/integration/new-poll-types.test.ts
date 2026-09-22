@@ -14,7 +14,7 @@ const settings = {
   visibility: "PUBLIC" as const,
   expectedParticipants: null,
 };
-const guest = () => ({ userId: null, userName: null, userEmail: null, voterToken: crypto.randomUUID() });
+const guest = () => ({ userId: null, userName: null, userEmail: null, userEmailVerified: false, voterToken: crypto.randomUUID() });
 
 async function setUp(type: "RANKING" | "RATING", config: object, labels: string[]) {
   const owner = await createUser();

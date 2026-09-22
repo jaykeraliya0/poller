@@ -279,8 +279,10 @@ export async function seedShowcase() {
   await db.user.deleteMany({ where: { email: { in: [DEMO_EMAIL, VOTER_EMAIL] } } });
 
   const passwordHash = await hash(DEMO_PASSWORD);
-  const demo = await db.user.create({ data: { email: DEMO_EMAIL, name: "Demo Organiser", passwordHash } });
-  const voter = await db.user.create({ data: { email: VOTER_EMAIL, name: "Sam Voter", passwordHash } });
+  // Confirmed, so the voter can open the private poll shared with their group.
+  const emailVerifiedAt = new Date();
+  const demo = await db.user.create({ data: { email: DEMO_EMAIL, name: "Demo Organiser", passwordHash, emailVerifiedAt } });
+  const voter = await db.user.create({ data: { email: VOTER_EMAIL, name: "Sam Voter", passwordHash, emailVerifiedAt } });
 
   const polls = [
     await seedChoicePoll(demo.id, voter.id),
