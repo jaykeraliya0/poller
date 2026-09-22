@@ -26,10 +26,10 @@ Built with **Next.js 16** (App Router, Server Actions), **shadcn/ui** (Base UI),
 
 | Type | Voter does | Key insights |
 |---|---|---|
-| **Choice** (single / multi) | Picks one or up to N options | Leader + margin, share of voters, consensus (strong / some / split) |
-| **Availability** | Marks each time slot *Yes / If need be / No* | Best slot as a sentence ("Fri 6pm works for everyone (4/4)"), slots grouped by day, voter's local time shown next to the poll's |
-| **Ranking** | Taps options in order of preference (top N or all) | Borda points, average rank, first-choice share, tie detection |
-| **Rating** | Scores each option 1–5 or 1–10 | Average, median, histogram, **"opinions split"** when many rate very low *and* very high |
+| **Choice** (single / multi) | Picks one or up to N options | Leader + margin, share of voters, consensus (strong / some / split), vote-share donut; multi-select adds options-per-voter and a picked-together heatmap |
+| **Availability** | Marks each time slot *Yes / If need be / No* | Best slot as a sentence ("Fri 6pm works for everyone (4/4)"), slots grouped by day, a day-by-day availability heatmap, voter's local time shown next to the poll's |
+| **Ranking** | Taps options in order of preference (top N or all) | Borda points, average rank, first-choice share, tie detection, rank-breakdown heatmap, head-to-head matrix with Condorcet winner |
+| **Rating** | Scores each option 1–5 or 1–10 | Average, median, histogram, **"opinions split"** when many rate very low *and* very high, diverging sentiment bars, average ± spread plot |
 
 **For the organiser:** templates for the four use cases, a dashboard, a live manage page (refreshes every 15 s), share link / native share sheet, deadline and close/reopen, anonymous or named voting, "require sign-in", results visibility (public / after voting / after close / owner only), expected-participants response rate, editing after publish, CSV export, and deleting polls or the account.
 
@@ -86,7 +86,7 @@ flowchart LR
   B -. "router.refresh() every 15s<br/>while visible & open" .-> N
 ```
 
-- **Pages are Server Components** that read the database directly. Client components are limited to forms, vote inputs, the chart, share controls and auto-refresh.
+- **Pages are Server Components** that read the database directly. Client components are limited to forms, vote inputs, the Recharts charts, share controls and auto-refresh.
 - **Mutations are Server Actions** that return a typed `ActionResult` (`{ ok: true, data } | { ok: false, code, message, fieldErrors?, retryAfter? }`) and never throw expected errors at the UI.
 - **Thin actions, testable services.** Actions handle cookies, IPs, rate limits and revalidation; the logic lives in plain modules (`lib/poll/votes.ts`, `lib/poll/service.ts`) that integration tests call directly.
 - **`proxy.ts`** (Next 16's name for middleware) only does optimistic work: it redirects signed-out users away from app routes by *checking that a session cookie exists*, and issues the guest `voter_token` cookie. Every page and action re-checks authorisation itself.
@@ -96,7 +96,7 @@ flowchart LR
 
 - **Create:** `requireUser` → rate limit (10/h/user) → validate details, settings and type setup in one pass → insert poll + options in one transaction → manage page with the share dialog.
 - **Vote:** rate limits (30/min/IP, 5/min/poll/IP) → load poll → open? sign-in rule? answers valid for *this* poll's options? → transaction: find the viewer's response (account first, then browser token) → update or insert → results page.
-- **Results:** `canViewResults` (permission matrix below) → load responses → `computeInsights` (common + type-specific) → summary, charts, comments, who-voted list.
+- **Results:** `canViewResults` (permission matrix below) → load responses → `computeInsights` (common + type-specific) → summary, charts, analysis (standings over time, turnout, type-specific breakdowns), comments, who-voted list.
 - **Close/reopen:** owner check → conditional update (so two concurrent closes can't both succeed).
 
 ### Permission matrix
@@ -184,7 +184,7 @@ app/                     Routes (Server Components by default)
 actions/                 Server Actions: thin wrappers returning ActionResult
 lib/
   poll/                  services (create/update/vote/close), permissions, status, templates, submission parsing
-  insights/              computeInsights: common stats + outcome/tie/consensus helpers
+  insights/              computeInsights: common stats, standings/turnout trends, outcome/tie/consensus helpers
   auth/                  guards (requireUser, requireOwner), password hashing, user service
   validation/            shared Zod schemas
   rate-limit.ts, redis.ts, csv.ts, datetime.ts, errors.ts
@@ -206,10 +206,11 @@ Each type is one folder under `poll-types/`, plugged into four registries that a
 | `editor.tsx` | client | config fields + options editor for the create/edit form |
 | `vote-input.tsx` | client | the voting control, progress text and read-only answer summary |
 | `results-view.tsx` | server | the results chart for the type |
+| `analysis-view.tsx` | server | extra analysis panels for the type (heatmaps, breakdowns) |
 
 ## Testing
 
-**~280 tests** across three layers: unit/component (Vitest + Testing Library), integration against a real Postgres and Redis, and end-to-end with Playwright on a mobile viewport.
+**~300 tests** across three layers: unit/component (Vitest + Testing Library), integration against a real Postgres and Redis, and end-to-end with Playwright on a mobile viewport.
 
 | Layer | What it covers |
 |---|---|
@@ -254,7 +255,7 @@ Every case from the design doc has defined behaviour and a test.
 - **Input:** Zod everywhere, answers validated against the poll's own option ids, `?next=` redirects restricted to same-origin paths, CSV cells escaped against formula injection.
 - **Headers:** `nosniff`, `frame-ancestors 'none'` / `X-Frame-Options: DENY`, strict referrer policy, restrictive permissions policy, no `X-Powered-By`.
 - **Abuse:** Redis sliding-window rate limits on login (10/15 min/IP), register (5/h/IP), create (10/h/user), vote (30/min/IP, 5/min/poll/IP).
-- **Accessibility:** axe WCAG 2.2 AA scans of every main screen pass in light *and* dark mode; ≥ 40–44 px tap targets on phones; labelled controls with errors linked via `aria-describedby`; status never shown by colour alone (icons + text); a skip link; the live indicator respects reduced motion; chart colours are a single-hue ramp validated for contrast and visible lightness steps in both themes.
+- **Accessibility:** axe WCAG 2.2 AA scans of every main screen pass in light *and* dark mode; ≥ 40–44 px tap targets on phones; labelled controls with errors linked via `aria-describedby`; status never shown by colour alone (icons + text); a skip link; the live indicator respects reduced motion; chart colours are a single-hue ramp for magnitude plus a small categorical set for multi-series charts, both validated for contrast and colour-blind separation in both themes; every chart has a legend with values, cell numbers or a screen-reader table, so colour is never the only channel.
 
 ## Decisions & trade-offs
 

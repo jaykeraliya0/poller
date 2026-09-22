@@ -30,7 +30,24 @@ export type RankingInsights = {
   outcome: Outcome<RankingOptionResult>;
   consensus: Consensus | null;
   headline: string | null;
+  /** Top options by points; counts[i][r] = ballots that put option i at rank r + 1. */
+  rankMatrix: { options: { optionId: string; label: string }[]; counts: number[][] };
+  headToHead: HeadToHead;
 };
+
+/**
+ * Pairwise preferences between the top options: wins[i][j] = voters who put i
+ * above j (an unranked option counts as below every ranked one).
+ */
+export type HeadToHead = {
+  options: { optionId: string; label: string }[];
+  wins: number[][];
+  /** Beats every other option one-on-one (over all options, not just those shown). */
+  condorcetWinner: { optionId: string; label: string } | null;
+};
+
+/** Rows on the rank and head-to-head grids; past this they stop fitting a phone. */
+const MAX_MATRIX_OPTIONS = 8;
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
 
@@ -81,5 +98,54 @@ export function computeRankingInsights(ctx: InsightContext, config: RankingConfi
     headline = `Tied at the top: ${formatList(outcome.tied.map((option) => option.label))} with ${plural(outcome.tied[0].points, "point")} each`;
   }
 
-  return { kind: "RANKING", ballotSize: size, options, outcome, consensus, headline };
+  const byPoints = [...options].sort((a, b) => b.points - a.points);
+  const shown = byPoints.slice(0, MAX_MATRIX_OPTIONS).map(({ optionId, label }) => ({ optionId, label }));
+  const counts = shown.map(() => Array.from({ length: size }, () => 0));
+  const row = new Map(shown.map((option, i) => [option.optionId, i]));
+  for (const response of ctx.responses) {
+    for (const { optionId, value: rank } of response.answers) {
+      const i = row.get(optionId);
+      if (i !== undefined && rank >= 1 && rank <= size) counts[i][rank - 1]++;
+    }
+  }
+
+  return {
+    kind: "RANKING",
+    ballotSize: size,
+    options,
+    outcome,
+    consensus,
+    headline,
+    rankMatrix: { options: shown, counts },
+    headToHead: computeHeadToHead(ctx, byPoints, shown.length),
+  };
+}
+
+function computeHeadToHead(ctx: InsightContext, byPoints: RankingOptionResult[], shownCount: number): HeadToHead {
+  const all = byPoints.map(({ optionId, label }) => ({ optionId, label }));
+  const index = new Map(all.map((option, i) => [option.optionId, i]));
+  const wins = all.map(() => all.map(() => 0));
+  for (const response of ctx.responses) {
+    const rankOf = new Map<number, number>();
+    for (const { optionId, value } of response.answers) {
+      const i = index.get(optionId);
+      if (i !== undefined) rankOf.set(i, value);
+    }
+    for (let i = 0; i < all.length; i++) {
+      for (let j = 0; j < all.length; j++) {
+        const a = rankOf.get(i) ?? Infinity;
+        const b = rankOf.get(j) ?? Infinity;
+        if (a < b) wins[i][j]++;
+      }
+    }
+  }
+
+  const winner = ctx.responses.length
+    ? all.find((_, i) => all.every((__, j) => i === j || wins[i][j] > wins[j][i]))
+    : undefined;
+  return {
+    options: all.slice(0, shownCount),
+    wins: wins.slice(0, shownCount).map((row) => row.slice(0, shownCount)),
+    condorcetWinner: winner ?? null,
+  };
 }

@@ -13,7 +13,11 @@ export type RatingOptionResult = Scored & {
   distribution: number[];
   /** Many low and many high ratings at once: the mean hides a disagreement. */
   polarized: boolean;
+  /** Ratings below, at and above the middle of the scale. */
+  sentiment: Sentiment;
 };
+
+export type Sentiment = { low: number; neutral: number; high: number };
 
 export type RatingInsights = {
   kind: "RATING";
@@ -31,6 +35,22 @@ const round1 = (value: number) => Math.round(value * 10) / 10;
 
 /** Minimum ratings before we'll call an option polarised. */
 const MIN_RATINGS_FOR_POLARISATION = 4;
+
+/**
+ * Splits ratings around the middle of the scale: 3 is neutral on 1–5, and
+ * 5–6 on 1–10 (an even scale has no single midpoint).
+ */
+export function sentimentOf(distribution: number[], scale: number): Sentiment {
+  const middle = (scale + 1) / 2;
+  const sentiment: Sentiment = { low: 0, neutral: 0, high: 0 };
+  distribution.forEach((count, i) => {
+    const value = i + 1;
+    if (Math.abs(value - middle) <= 0.5) sentiment.neutral += count;
+    else if (value < middle) sentiment.low += count;
+    else sentiment.high += count;
+  });
+  return sentiment;
+}
 
 function median(sorted: number[]): number {
   const mid = Math.floor(sorted.length / 2);
@@ -62,7 +82,7 @@ export function computeRatingInsights(ctx: InsightContext, config: RatingConfig)
     const ratings = (values.get(option.id) ?? []).sort((a, b) => a - b);
     const distribution = Array.from({ length: scale }, (_, i) => ratings.filter((value) => value === i + 1).length);
     if (ratings.length === 0) {
-      return { optionId: option.id, label: option.label, score: 0, count: 0, mean: null, median: null, standardDeviation: null, distribution, polarized: false };
+      return { optionId: option.id, label: option.label, score: 0, count: 0, mean: null, median: null, standardDeviation: null, distribution, polarized: false, sentiment: sentimentOf(distribution, scale) };
     }
     const mean = ratings.reduce((sum, value) => sum + value, 0) / ratings.length;
     const variance = ratings.reduce((sum, value) => sum + (value - mean) ** 2, 0) / ratings.length;
@@ -77,6 +97,7 @@ export function computeRatingInsights(ctx: InsightContext, config: RatingConfig)
       standardDeviation: round1(Math.sqrt(variance)),
       distribution,
       polarized: isPolarized(ratings, scale),
+      sentiment: sentimentOf(distribution, scale),
     };
   });
 

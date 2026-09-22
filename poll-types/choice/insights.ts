@@ -27,7 +27,17 @@ export type ChoiceInsights = {
   outcome: Outcome<ChoiceOptionResult>;
   consensus: Consensus | null;
   headline: string | null;
+  /** Multi-select only: picksPerBallot[i] = voters who picked i + 1 options. */
+  picksPerBallot: number[] | null;
+  /** Multi-select only: how often each pair of options was picked together. */
+  coPicks: CoPicks | null;
 };
+
+/** Top options by votes, and together[i][j] = voters who picked both i and j (the diagonal is i's own count). */
+export type CoPicks = { options: { optionId: string; label: string; count: number }[]; together: number[][] };
+
+/** Rows and columns on the co-pick grid; past this it stops fitting a phone. */
+const MAX_CO_PICK_OPTIONS = 8;
 
 export function computeChoiceInsights(ctx: InsightContext, config: ChoiceConfig): ChoiceInsights {
   const total = ctx.responses.length;
@@ -69,7 +79,42 @@ export function computeChoiceInsights(ctx: InsightContext, config: ChoiceConfig)
     headline = `Tied between ${formatList(outcome.tied.map((option) => option.label))} with ${plural(first.count, "vote")} each`;
   }
 
-  return { kind: "CHOICE", multi: config.multi, options, outcome, consensus, headline };
+  return {
+    kind: "CHOICE",
+    multi: config.multi,
+    options,
+    outcome,
+    consensus,
+    headline,
+    picksPerBallot: config.multi ? computePicksPerBallot(ctx, options.length) : null,
+    coPicks: config.multi ? computeCoPicks(ctx, options) : null,
+  };
+}
+
+function computePicksPerBallot(ctx: InsightContext, optionCount: number): number[] {
+  const counts = Array.from({ length: optionCount }, () => 0);
+  for (const response of ctx.responses) {
+    const picked = response.answers.length;
+    if (picked > 0) counts[Math.min(picked, optionCount) - 1]++;
+  }
+  // Trim trailing zeros so the chart ends at the biggest ballot anyone cast.
+  let last = counts.length;
+  while (last > 1 && counts[last - 1] === 0) last--;
+  return counts.slice(0, last);
+}
+
+function computeCoPicks(ctx: InsightContext, options: ChoiceOptionResult[]): CoPicks {
+  const top = [...options]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, MAX_CO_PICK_OPTIONS)
+    .map(({ optionId, label, count }) => ({ optionId, label, count }));
+  const index = new Map(top.map((option, i) => [option.optionId, i]));
+  const together = top.map(() => top.map(() => 0));
+  for (const response of ctx.responses) {
+    const picked = response.answers.map((answer) => index.get(answer.optionId)).filter((i) => i !== undefined);
+    for (const a of picked) for (const b of picked) together[a][b]++;
+  }
+  return { options: top, together };
 }
 
 /**

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-export type TallyTone = "signal" | "soft" | "rest";
+export type TallyTone = "signal" | "soft" | "rest" | "negative";
 
 type TallySegment = { value: number; tone: TallyTone; label: string };
 
@@ -8,6 +8,7 @@ const TONE_CLASS: Record<TallyTone, string> = {
   signal: "bg-viz-accent",
   soft: "bg-viz-accent-soft",
   rest: "bg-viz-rest",
+  negative: "bg-viz-negative",
 };
 
 type TallyRowProps = {

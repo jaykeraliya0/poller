@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeContext, makeOptions, makePoll, makeResponse } from "@/tests/fixtures/insights";
 import { ratingPollType } from "./definition";
-import { isPolarized } from "./insights";
+import { isPolarized, sentimentOf } from "./insights";
 
 const options = makeOptions(["Lisbon", "Berlin", "Oslo"]);
 const config = { scale: 5, lowLabel: "Not keen", highLabel: "Love it" };
@@ -57,5 +57,15 @@ describe("rating insights", () => {
     expect(isPolarized([1, 5, 5], 5)).toBe(false);
     expect(isPolarized([1, 3, 8, 10], 10)).toBe(true);
     expect(isPolarized([5, 6, 5, 6], 10)).toBe(false);
+  });
+});
+
+describe("sentimentOf", () => {
+  it("treats the middle score as neutral on an odd scale", () => {
+    expect(sentimentOf([1, 1, 1, 1, 1], 5)).toEqual({ low: 2, neutral: 1, high: 2 });
+  });
+
+  it("treats the two middle scores as neutral on an even scale", () => {
+    expect(sentimentOf(Array(10).fill(1), 10)).toEqual({ low: 4, neutral: 2, high: 4 });
   });
 });

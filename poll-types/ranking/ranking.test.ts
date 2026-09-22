@@ -87,3 +87,35 @@ describe("ranking insights", () => {
     expect(rankingPollType.csvValue(undefined)).toBe("");
   });
 });
+
+describe("ranking analysis", () => {
+  const insights = (responses: ReturnType<typeof ballot>[]) =>
+    rankingPollType.computeInsights(makeContext({ poll: makePoll({ type: "RANKING", config: top3 }), options, responses }));
+
+  const ballots = () => [ballot("opt-1", "opt-2", "opt-3"), ballot("opt-1", "opt-3", "opt-2"), ballot("opt-2", "opt-1", "opt-4")];
+
+  it("counts how often each option lands at each rank, by points", () => {
+    const { rankMatrix } = insights(ballots());
+    expect(rankMatrix.options.map((option) => option.optionId)).toEqual(["opt-1", "opt-2", "opt-3", "opt-4"]);
+    expect(rankMatrix.counts).toEqual([
+      [2, 1, 0],
+      [1, 1, 1],
+      [0, 1, 1],
+      [0, 0, 1],
+    ]);
+  });
+
+  it("counts head-to-head wins, treating unranked as last, and finds the Condorcet winner", () => {
+    const { headToHead } = insights(ballots());
+    expect(headToHead.wins[0]).toEqual([0, 2, 3, 3]);
+    expect(headToHead.wins[1][0]).toBe(1);
+    expect(headToHead.wins[2][3]).toBe(2);
+    expect(headToHead.wins[3][2]).toBe(1);
+    expect(headToHead.condorcetWinner?.label).toBe("Dark mode");
+  });
+
+  it("has no Condorcet winner in a preference cycle", () => {
+    const cycle = [ballot("opt-1", "opt-2", "opt-3"), ballot("opt-2", "opt-3", "opt-1"), ballot("opt-3", "opt-1", "opt-2")];
+    expect(insights(cycle).headToHead.condorcetWinner).toBeNull();
+  });
+});

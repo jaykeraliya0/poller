@@ -130,3 +130,27 @@ describe("choice summarizeAnswers", () => {
     expect(choicePollType.summarizeAnswers(rows, { config: multi(), options })).toBe("Pizza, Tacos");
   });
 });
+
+describe("choice analysis", () => {
+  const insights = (config: object, responses: ReturnType<typeof choiceVotes>) =>
+    choicePollType.computeInsights(makeContext({ poll: makePoll({ config }), options, responses }));
+
+  it("counts picks per ballot and trims unused sizes", () => {
+    expect(insights(multi(), choiceVotes(["opt-1", "opt-2"], ["opt-1", "opt-2", "opt-3"], ["opt-1"])).picksPerBallot).toEqual([1, 1, 1]);
+    expect(insights(multi(), choiceVotes(["opt-1"], ["opt-2"])).picksPerBallot).toEqual([2]);
+  });
+
+  it("counts pairs picked together, most-picked options first", () => {
+    const { coPicks } = insights(multi(), choiceVotes(["opt-3", "opt-2"], ["opt-1", "opt-2", "opt-3"], ["opt-3"]));
+    expect(coPicks!.options.map((option) => option.label)).toEqual(["Tacos", "Sushi", "Pizza"]);
+    expect(coPicks!.together).toEqual([
+      [3, 2, 1],
+      [2, 2, 1],
+      [1, 1, 1],
+    ]);
+  });
+
+  it("skips multi-select analysis on single-choice polls", () => {
+    expect(insights(single, choiceVotes(["opt-1"]))).toMatchObject({ picksPerBallot: null, coPicks: null });
+  });
+});

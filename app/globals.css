@@ -24,6 +24,7 @@
     --color-viz-accent-soft: var(--viz-accent-soft);
     --color-viz-rest: var(--viz-rest);
     --color-viz-track: var(--viz-track);
+    --color-viz-negative: var(--viz-negative);
     --color-ring: var(--ring);
     --color-input: var(--input);
     --color-border: var(--border);
@@ -90,6 +91,18 @@
     --viz-accent-soft: #a9a8ff;
     --viz-rest: #c9ceda;
     --viz-track: #eceef3;
+    /*
+     * Categorical order for multi-series charts (standings, share), validated for
+     * CVD and contrast on the panel; 3–5 sit under 3:1, so those charts always
+     * carry direct labels or a legend with values. Negative = the warm pole of
+     * diverging charts, opposite the signal.
+     */
+    --viz-series-1: var(--signal);
+    --viz-series-2: #eb6834;
+    --viz-series-3: #1baf7a;
+    --viz-series-4: #eda100;
+    --viz-series-5: #e87ba4;
+    --viz-negative: #eb6834;
     --radius: 0.625rem;
     --sidebar: var(--canvas);
     --sidebar-accent: #e4e6ed;
@@ -129,6 +142,12 @@
     --viz-accent-soft: #4a48b8;
     --viz-rest: #3a3f50;
     --viz-track: #1e2230;
+    --viz-series-1: var(--signal);
+    --viz-series-2: #d95926;
+    --viz-series-3: #199e70;
+    --viz-series-4: #c98500;
+    --viz-series-5: #d55181;
+    --viz-negative: #d95926;
     --sidebar: var(--canvas);
     --sidebar-accent: #1c1f2b;
 }
