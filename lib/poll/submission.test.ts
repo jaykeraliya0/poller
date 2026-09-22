@@ -69,9 +69,9 @@ describe("parsePollSubmission", () => {
     expect(!result.success && result.fieldErrors["config.maxSelections"]).toBeTruthy();
   });
 
-  it("rejects poll types that aren't available yet", () => {
-    const result = parsePollSubmission(choice({ type: "RANKING" }));
-    expect(!result.success && result.fieldErrors.type).toEqual(["This poll type isn't available yet"]);
+  it("rejects unknown poll types", () => {
+    const result = parsePollSubmission(choice({ type: "SURVEY" as never }));
+    expect(!result.success && result.fieldErrors.type).toBeTruthy();
   });
 
   it("survives garbage input", () => {

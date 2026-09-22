@@ -15,7 +15,6 @@ export type PollTemplateDefinition = {
   optionLabels: string[];
 };
 
-// FEATURE_PRIORITY and OFFSITE_LOCATION move to RANKING and RATING once those types ship.
 export const POLL_TEMPLATES: PollTemplateDefinition[] = [
   {
     id: "EVENT_DATE",
@@ -33,10 +32,10 @@ export const POLL_TEMPLATES: PollTemplateDefinition[] = [
     name: "Prioritise features",
     tagline: "Let the team vote on what to build next.",
     icon: "list-ordered",
-    type: "CHOICE",
-    config: { multi: true, maxSelections: 3 },
+    type: "RANKING",
+    config: { rankTop: 3 },
     title: "What should we build next?",
-    description: "Pick up to three features you think matter most.",
+    description: "Rank the three features you think matter most.",
     optionLabels: ["Dark mode", "Offline support", "CSV export", "Faster search"],
   },
   {
@@ -44,10 +43,10 @@ export const POLL_TEMPLATES: PollTemplateDefinition[] = [
     name: "Choose a location",
     tagline: "Settle where the offsite or trip goes.",
     icon: "map-pin",
-    type: "CHOICE",
-    config: { multi: false, maxSelections: null },
+    type: "RATING",
+    config: { scale: 5, lowLabel: "Not keen", highLabel: "Love it" },
     title: "Where should we go for the offsite?",
-    description: "Pick the place you'd most like to go.",
+    description: "Rate each place from 1 to 5.",
     optionLabels: ["Lisbon", "Barcelona", "Amsterdam"],
   },
   {

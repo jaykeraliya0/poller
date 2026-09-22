@@ -1,11 +1,11 @@
 "use client";
 
 import { FieldShell } from "@/components/forms/field-shell";
-import { OptionListEditor, newLabelDraft, type LabelDraft } from "@/components/poll-form/option-list-editor";
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import type { PollTypeEditor, TypeEditorProps } from "../editor-types";
+import { labelOptionEditor } from "../label-editor";
 import { DEFAULT_CHOICE_CONFIG, type ChoiceConfig } from "./definition";
 
 function ChoiceConfigFields({ config, onConfigChange, errors, configLocked }: TypeEditorProps) {
@@ -57,28 +57,8 @@ function ChoiceConfigFields({ config, onConfigChange, errors, configLocked }: Ty
   );
 }
 
-function ChoiceOptionsEditor({ options, onOptionsChange, errors, lockedOptionIds }: TypeEditorProps) {
-  return (
-    <OptionListEditor
-      options={options as LabelDraft[]}
-      onChange={onOptionsChange}
-      errors={errors}
-      lockedIds={lockedOptionIds}
-    />
-  );
-}
-
 export const choiceEditor: PollTypeEditor = {
-  optionKind: "label",
-  sectionTitle: "Options",
-  sectionDescription: "What can people choose from?",
+  ...labelOptionEditor,
   defaultConfig: () => ({ ...DEFAULT_CHOICE_CONFIG }),
-  initialOptions: (labels) => (labels.length >= 2 ? labels : ["", ""]).map((label) => newLabelDraft(label)),
-  fromPoll: (_config, options) => options.map((option) => newLabelDraft(option.label, option.id)),
-  toSubmission: (config, options) => ({
-    config,
-    options: (options as LabelDraft[]).map(({ id, label }) => ({ ...(id && { id }), label })),
-  }),
   ConfigFields: ChoiceConfigFields,
-  OptionsEditor: ChoiceOptionsEditor,
 };

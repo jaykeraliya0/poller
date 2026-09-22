@@ -1,7 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { formatRelative } from "@/lib/datetime";
 import type { PollInsights } from "@/lib/insights";
-import { MIN_RESPONSES_FOR_OUTCOME, plural, type Consensus } from "@/lib/insights/outcome";
+import { SplitIcon } from "lucide-react";
+import { MIN_RESPONSES_FOR_OUTCOME, formatList, plural, type Consensus } from "@/lib/insights/outcome";
 import { Meter } from "./meter";
 import { OutcomeBadge } from "./outcome-badge";
 import { StatTile } from "./stat-tile";
@@ -29,9 +30,16 @@ function leadStat({ byType }: PollInsights): { value: string; detail: string } {
   if (outcome.kind === "TIE") return { value: "Tied", detail: `${outcome.tied.length} options level` };
   if (outcome.kind !== "LEADER" || !outcome.runnerUp) return { value: "—", detail: "Not enough votes yet" };
 
-  if (byType.kind === "CHOICE") {
-    const runnerUp = byType.options.find((option) => option.optionId === outcome.runnerUp!.optionId)!;
-    return { value: `+${outcome.margin}`, detail: `${plural(outcome.margin, "vote")} ahead of ${runnerUp.label}` };
+  const runnerUpLabel = outcome.runnerUp.label;
+  switch (byType.kind) {
+    case "CHOICE":
+      return { value: `+${outcome.margin}`, detail: `${plural(outcome.margin, "vote")} ahead of ${runnerUpLabel}` };
+    case "RANKING":
+      return { value: `+${outcome.margin}`, detail: `${plural(outcome.margin, "point")} ahead of ${runnerUpLabel}` };
+    case "RATING":
+      return { value: `+${Math.round(outcome.margin * 10) / 10}`, detail: `higher average than ${runnerUpLabel}` };
+    case "AVAILABILITY":
+      break;
   }
   const leader = byType.slots.find((slot) => slot.optionId === outcome.leader.optionId)!;
   const runnerUp = byType.slots.find((slot) => slot.optionId === outcome.runnerUp!.optionId)!;
@@ -47,7 +55,9 @@ export function InsightsSummary({ insights, closesAt, now }: InsightsSummaryProp
   const { common, byType } = insights;
   const open = common.status !== "CLOSED";
   const lead = leadStat(insights);
-  const consensus = byType.kind === "CHOICE" && common.hasEnoughData ? byType.consensus : null;
+  const consensus =
+    (byType.kind === "CHOICE" || byType.kind === "RANKING") && common.hasEnoughData ? byType.consensus : null;
+  const polarized = byType.kind === "RATING" && common.hasEnoughData ? byType.polarizedLabels : [];
   const rate = common.responseRate;
 
   return (
@@ -63,6 +73,12 @@ export function InsightsSummary({ insights, closesAt, now }: InsightsSummaryProp
         <p className="text-lg font-semibold text-balance break-words" aria-live="polite">
           {byType.headline ?? fallbackHeadline(insights)}
         </p>
+        {polarized.length > 0 && (
+          <p className="flex items-start gap-2 text-sm text-muted-foreground">
+            <SplitIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+            Opinions split on {formatList(polarized)}: many rated {polarized.length === 1 ? "it" : "them"} very low and many very high.
+          </p>
+        )}
       </div>
 
       <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
