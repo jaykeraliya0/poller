@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayKey, formatShortSlot, formatSlotLabel, isValidTimeZone, zonedDateTime } from "./datetime";
+import { dayKey, formatRelative, formatShortSlot, formatSlotLabel, isValidTimeZone, zonedDateTime } from "./datetime";
 
 describe("datetime helpers", () => {
   it("validates IANA time zones", () => {
@@ -43,5 +43,17 @@ describe("zonedDateTime", () => {
   it("returns null for malformed input", () => {
     expect(zonedDateTime("", "18:00", "UTC")).toBeNull();
     expect(zonedDateTime("2026-09-25", "6pm", "UTC")).toBeNull();
+  });
+});
+
+describe("formatRelative", () => {
+  const now = new Date("2026-09-22T12:00:00Z");
+  it("says 'just now' within a minute either way", () => {
+    expect(formatRelative(new Date("2026-09-22T11:59:30Z"), now)).toBe("just now");
+    expect(formatRelative(new Date("2026-09-22T12:00:20Z"), now)).toBe("just now");
+  });
+  it("falls back to a relative distance", () => {
+    expect(formatRelative(new Date("2026-09-22T11:55:00Z"), now)).toBe("5 minutes ago");
+    expect(formatRelative(new Date("2026-09-24T12:00:00Z"), now)).toBe("in 2 days");
   });
 });

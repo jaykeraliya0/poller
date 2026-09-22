@@ -1,17 +1,11 @@
 import Link from "next/link";
-import { formatDistanceStrict } from "date-fns";
 import { ChevronRightIcon, UsersIcon } from "lucide-react";
 import type { PollType } from "@/generated/prisma/enums";
+import { formatRelative } from "@/lib/datetime";
 import { plural } from "@/lib/insights/outcome";
 import type { PollTiming } from "@/lib/poll/status";
 import { getPollType } from "@/poll-types/registry";
 import { StatusBadge } from "./status-badge";
-
-function formatCreated(createdAt: Date, now: Date) {
-  return now.getTime() - createdAt.getTime() < 60_000
-    ? "just now"
-    : formatDistanceStrict(createdAt, now, { addSuffix: true });
-}
 
 type PollListItemProps = {
   poll: PollTiming & {
@@ -43,7 +37,7 @@ export function PollListItem({ poll, now }: PollListItemProps) {
           {plural(responses, "response")}
           {poll.expectedParticipants ? ` of ${poll.expectedParticipants}` : ""}
           <span aria-hidden>·</span>
-          created {formatCreated(poll.createdAt, now)}
+          created {formatRelative(poll.createdAt, now)}
         </p>
       </div>
       <ChevronRightIcon className="size-5 shrink-0 text-muted-foreground group-hover:text-foreground" aria-hidden />

@@ -9,6 +9,7 @@ export default function NotFound() {
       <EmptyState
         icon={SearchXIcon}
         title="Page not found"
+        level={1}
         description="This poll may have been deleted, or the link is mistyped."
       >
         <ButtonLink href="/" size="lg" className="h-11">

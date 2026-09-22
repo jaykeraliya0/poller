@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format, formatDistanceStrict } from "date-fns";
 import { TZDate, tz } from "@date-fns/tz";
 
 /**
@@ -62,4 +62,11 @@ export function formatSlotLabel(start: Date, end: Date, timeZone: string): strin
 /** UTC calendar day, used for response timelines. */
 export function utcDayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+/** "just now" under a minute, otherwise "5 minutes ago" / "in 2 days". */
+export function formatRelative(date: Date, now: Date): string {
+  return Math.abs(now.getTime() - date.getTime()) < 60_000
+    ? "just now"
+    : formatDistanceStrict(date, now, { addSuffix: true });
 }

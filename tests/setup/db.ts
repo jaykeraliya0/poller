@@ -1,3 +1,4 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { createSlug } from "@/lib/poll/slug";
 
@@ -17,7 +18,11 @@ export async function createUser(name = "Test User") {
   });
 }
 
-export async function createChoicePoll(creatorId: string, labels = ["A", "B", "C"]) {
+export async function createChoicePoll(
+  creatorId: string,
+  labels = ["A", "B", "C"],
+  overrides: Partial<Prisma.PollUncheckedCreateInput> = {},
+) {
   return db.poll.create({
     data: {
       creatorId,
@@ -26,6 +31,29 @@ export async function createChoicePoll(creatorId: string, labels = ["A", "B", "C
       title: "Test poll",
       config: { multi: false, maxSelections: null },
       options: { create: labels.map((label, position) => ({ label, position })) },
+      ...overrides,
+    },
+    include: { options: { orderBy: { position: "asc" } } },
+  });
+}
+
+export async function createAvailabilityPoll(creatorId: string, slotCount = 2) {
+  const start = Date.now() + 3 * 24 * 60 * 60 * 1000;
+  return db.poll.create({
+    data: {
+      creatorId,
+      slug: createSlug(),
+      type: "AVAILABILITY",
+      title: "When?",
+      config: { timezone: "UTC" },
+      options: {
+        create: Array.from({ length: slotCount }, (_, position) => ({
+          label: `Slot ${position + 1}`,
+          position,
+          startsAt: new Date(start + position * 3_600_000),
+          endsAt: new Date(start + (position + 1) * 3_600_000),
+        })),
+      },
     },
     include: { options: { orderBy: { position: "asc" } } },
   });
