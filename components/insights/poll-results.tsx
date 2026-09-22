@@ -1,5 +1,6 @@
 import { InboxIcon } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ShowMore } from "@/components/shared/show-more";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PollInsights } from "@/lib/insights";
 import type { ResponseRow } from "@/lib/poll/results";
@@ -61,7 +62,12 @@ export function PollResults({ poll, insights, rows, showNames, now, emptyAction 
             <CardTitle className="text-base">Comments ({common.comments.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            <CommentsFeed comments={common.comments} now={now} />
+            <ShowMore
+              items={common.comments}
+              initial={10}
+              noun="comments"
+              render={(comments) => <CommentsFeed comments={comments} now={now} />}
+            />
           </CardContent>
         </Card>
       )}
@@ -69,11 +75,11 @@ export function PollResults({ poll, insights, rows, showNames, now, emptyAction 
       {showNames && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Who voted</CardTitle>
+            <CardTitle className="text-base">Who voted ({rows.length})</CardTitle>
             <CardDescription>Latest first.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsesList rows={rows} now={now} />
+            <ShowMore items={rows} initial={25} noun="voters" render={(items) => <ResponsesList rows={items} now={now} />} />
           </CardContent>
         </Card>
       )}

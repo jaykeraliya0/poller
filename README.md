@@ -35,7 +35,9 @@ Built with **Next.js 16** (App Router, Server Actions), **shadcn/ui** (Base UI),
 
 **For voters:** no account needed (unless the organiser requires one), change or withdraw a vote while the poll is open, and land on the results straight after voting when allowed.
 
-**Demo data:** `pnpm db:seed` creates `demo@poller.dev` / `password123` with one poll of each type.
+**Demo data:**
+- `pnpm db:seed`: small and fast. Creates `demo@poller.dev` (organiser) and `voter@poller.dev` (password `password123` for both), plus one showcase poll per type and a closed poll.
+- `pnpm db:seed:large`: **wipes the database** and loads the showcase plus a realistic dataset of ~250 users, ~185 polls and ~7,000 votes (~25,000 answers). Votes come from per-poll hidden preferences, so there are clear winners, close races, ties, polarised ratings, empty and near-empty polls, and options added mid-vote. It's deterministic (seeded) and every generated user's password is `password123`.
 
 ## Quick start
 
@@ -69,7 +71,8 @@ The app runs without Redis: rate limiting fails open with a logged warning.
 | `pnpm test:all` | Both of the above |
 | `pnpm test:e2e` | Playwright on mobile (Pixel 7) + desktop Chrome, against a production build on the test DB |
 | `pnpm test:e2e:all` | Adds the iPhone 14 (WebKit) project where WebKit can run |
-| `pnpm db:migrate` · `db:seed` · `db:reset` | Prisma migrations, seed, full reset |
+| `pnpm db:migrate` · `db:seed` · `db:reset` | Prisma migrations, small demo seed, full reset |
+| `pnpm db:seed:large` | Wipe the database and load thousands of realistic records |
 
 ## Architecture
 

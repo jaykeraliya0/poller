@@ -19,7 +19,8 @@
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force && prisma generate",
     "postinstall": "prisma generate",
-    "test:e2e:all": "playwright test"
+    "test:e2e:all": "playwright test",
+    "db:seed:large": "tsx prisma/seed-large.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
