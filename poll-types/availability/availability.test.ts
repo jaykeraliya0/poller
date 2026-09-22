@@ -158,3 +158,19 @@ describe("availability insights", () => {
     });
   });
 });
+
+describe("availability summarizeAnswers", () => {
+  it("lists yes and if-need-be slots in the poll's time zone", () => {
+    const rows = [
+      { optionId: "slot-1", value: 2 },
+      { optionId: "slot-2", value: 1 },
+      { optionId: "slot-3", value: 2 },
+    ];
+    expect(availabilityPollType.summarizeAnswers(rows, { config, options: slots })).toBe(
+      "Yes: Fri 6pm, Sat 10am · If need be: Fri 8pm",
+    );
+    expect(availabilityPollType.summarizeAnswers([{ optionId: "slot-1", value: 0 }], { config, options: slots })).toBe(
+      "None of these times",
+    );
+  });
+});

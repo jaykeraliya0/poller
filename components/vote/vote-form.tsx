@@ -93,7 +93,8 @@ export function VoteForm(props: VoteFormProps) {
       }
       setFailure(null);
       toast.success(result.data.updated ? "Your vote was updated" : "Your vote is in. Thanks!");
-      router.refresh();
+      if (result.data.resultsVisible) router.push(`/p/${poll.slug}/results`);
+      else router.refresh();
     });
   };
 

@@ -1,34 +1,32 @@
-import NextAuth from "next-auth";
-import { NextResponse } from "next/server";
-import { authConfig } from "./auth.config";
+import { NextResponse, type NextRequest } from "next/server";
 import { VOTER_TOKEN_COOKIE, createVoterToken, voterTokenCookieOptions } from "@/lib/voter-token";
 
-const { auth } = NextAuth(authConfig);
-
 const PROTECTED_PREFIXES = ["/dashboard", "/polls", "/settings"];
-const AUTH_PAGES = ["/login", "/register"];
+
+// Auth.js session cookie names (plain and __Secure- on https; large tokens are chunked as `.0`, `.1`, …).
+const SESSION_COOKIE = /^(__Secure-)?authjs\.session-token(\.\d+)?$/;
 
 const matches = (pathname: string, prefix: string) =>
   pathname === prefix || pathname.startsWith(`${prefix}/`);
 
 /**
- * First redirect layer only: every page and action re-checks access itself.
- * Also gives each voting browser a stable voter_token.
+ * Optimistic first layer only: it checks that a session cookie exists and
+ * never decodes or rewrites it. Every page and action verifies the session
+ * itself. Keeping Auth.js out of here matters: its wrapper re-issues the
+ * session cookie on each request, so an in-flight prefetch could quietly sign
+ * a user back in right after they signed out.
  */
-export default auth((request) => {
+export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  const signedIn = Boolean(request.auth?.user);
+  const hasSession = request.cookies.getAll().some((cookie) => SESSION_COOKIE.test(cookie.name));
 
-  if (!signedIn && PROTECTED_PREFIXES.some((prefix) => matches(pathname, prefix))) {
+  if (!hasSession && PROTECTED_PREFIXES.some((prefix) => matches(pathname, prefix))) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", `${pathname}${search}`);
     return NextResponse.redirect(loginUrl);
   }
 
-  if (signedIn && AUTH_PAGES.includes(pathname)) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
+  // Give each voting browser a stable guest identity.
   if (matches(pathname, "/p") && !request.cookies.has(VOTER_TOKEN_COOKIE)) {
     const token = createVoterToken();
     // Set on the request too, so the page rendering this request already sees it.
@@ -39,15 +37,8 @@ export default auth((request) => {
   }
 
   return NextResponse.next();
-});
+}
 
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/polls/:path*",
-    "/settings/:path*",
-    "/p/:path*",
-    "/login",
-    "/register",
-  ],
+  matcher: ["/dashboard/:path*", "/polls/:path*", "/settings/:path*", "/p/:path*"],
 };

@@ -94,7 +94,12 @@ describe("choice insights", () => {
     expect(result.outcome).toMatchObject({ kind: "LEADER", leader: { label: "Sushi" }, margin: 2 });
     expect(result.options[1].share).toBeCloseTo(0.6);
     expect(result.consensus).toBe("STRONG");
-    expect(result.headline).toBe("Sushi leads with 3 of 5 votes (60%), 2 ahead of Pizza");
+    expect(result.headline).toBe("Sushi leads with 3 of 5 votes (60%), 2 ahead of the next options");
+  });
+
+  it("doesn't pick one arbitrarily when several options tie for second", () => {
+    const result = insights(choiceVotes(["opt-1"], ["opt-1"], ["opt-1"], ["opt-2"], ["opt-3"]));
+    expect(result.headline).toBe("Pizza leads with 3 of 5 votes (60%), 2 ahead of the next options");
   });
 
   it("says 'won' once the poll is closed", () => {
@@ -116,5 +121,12 @@ describe("choice insights", () => {
     expect(result.multi).toBe(true);
     expect(result.options.map((o) => o.share)).toEqual([1, 1 / 3, 1 / 3]);
     expect(result.consensus).toBe("STRONG");
+  });
+});
+
+describe("choice summarizeAnswers", () => {
+  it("lists picked labels in poll order", () => {
+    const rows = [{ optionId: "opt-3", value: 1 }, { optionId: "opt-1", value: 1 }];
+    expect(choicePollType.summarizeAnswers(rows, { config: multi(), options })).toBe("Pizza, Tacos");
   });
 });

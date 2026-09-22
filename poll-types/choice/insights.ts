@@ -61,7 +61,7 @@ export function computeChoiceInsights(ctx: InsightContext, config: ChoiceConfig)
     const verb = open ? "leads" : "won";
     const votes = `${leader.count} of ${plural(total, "vote")} (${formatPercent(leader.share)})`;
     headline = runnerUp
-      ? `${leader.label} ${verb} with ${votes}, ${margin} ahead of ${runnerUp.label}`
+      ? `${leader.label} ${verb} with ${votes}, ${margin} ahead of ${runnerUpLabel(options, runnerUp.score)}`
       : `${leader.label} ${verb} with ${votes}`;
   } else if (outcome.kind === "TIE") {
     consensus = "SPLIT";
@@ -70,4 +70,13 @@ export function computeChoiceInsights(ctx: InsightContext, config: ChoiceConfig)
   }
 
   return { kind: "CHOICE", multi: config.multi, options, outcome, consensus, headline };
+}
+
+/**
+ * Names the runner-up only when there's exactly one; listing several tied
+ * labels gets ambiguous fast (labels can contain commas and "and").
+ */
+function runnerUpLabel(options: ChoiceOptionResult[], score: number): string {
+  const tied = options.filter((option) => option.score === score);
+  return tied.length === 1 ? tied[0].label : "the next options";
 }

@@ -33,7 +33,7 @@ describe("submitVoteAction", () => {
   });
 
   it("issues a voter token when the browser has none and records the vote under it", async () => {
-    expect(await submitVoteAction(input())).toEqual({ ok: true, data: { updated: false } });
+    expect(await submitVoteAction(input())).toEqual({ ok: true, data: { updated: false, resultsVisible: true } });
     const token = cookieJar.get(VOTER_TOKEN_COOKIE);
     expect(token).toBeTruthy();
     expect(await db.pollResponse.findFirstOrThrow()).toMatchObject({ voterToken: token });

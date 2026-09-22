@@ -19,7 +19,9 @@ const slugOf = (input: unknown) =>
     ? (input as { slug: string }).slug
     : "";
 
-export async function submitVoteAction(input: unknown): Promise<ActionResult<{ updated: boolean }>> {
+export async function submitVoteAction(
+  input: unknown,
+): Promise<ActionResult<{ updated: boolean; resultsVisible: boolean }>> {
   try {
     const ip = await getClientIp();
     await enforceRateLimit("vote", ip);
@@ -30,7 +32,7 @@ export async function submitVoteAction(input: unknown): Promise<ActionResult<{ u
     if (result.voterToken !== identity.voterToken) await setVoterToken(result.voterToken);
 
     revalidatePoll(result.slug, result.pollId);
-    return ok({ updated: result.updated });
+    return ok({ updated: result.updated, resultsVisible: result.resultsVisible });
   } catch (error) {
     return toActionFailure(error);
   }

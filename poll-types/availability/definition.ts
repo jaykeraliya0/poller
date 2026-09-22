@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { formatSlotLabel, isValidTimeZone } from "@/lib/datetime";
+import { formatShortSlot, formatSlotLabel, isValidTimeZone } from "@/lib/datetime";
 import { POLL_LIMITS } from "@/lib/validation/poll";
 import { definePollType } from "../types";
 import { optionIdSchema } from "../shared";
@@ -93,5 +93,23 @@ export const availabilityPollType = definePollType<AvailabilityAnswers, Availabi
 
   computeInsights(ctx) {
     return computeAvailabilityInsights(ctx, availabilityConfigSchema.parse(ctx.poll.config));
+  },
+
+  summarizeAnswers(rows, { config, options }) {
+    const { timezone } = availabilityConfigSchema.parse(config);
+    const value = new Map(rows.map((row) => [row.optionId, row.value]));
+    const slotsWith = (target: number) =>
+      options
+        .filter((option) => option.startsAt && value.get(option.id) === target)
+        .map((option) => formatShortSlot(option.startsAt!, timezone));
+    const parts = [
+      ["Yes", slotsWith(Availability.YES)],
+      ["If need be", slotsWith(Availability.MAYBE)],
+    ] as const;
+    const text = parts
+      .filter(([, slots]) => slots.length > 0)
+      .map(([label, slots]) => `${label}: ${slots.join(", ")}`)
+      .join(" · ");
+    return text || "None of these times";
   },
 });

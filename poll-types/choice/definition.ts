@@ -58,4 +58,12 @@ export const choicePollType = definePollType<ChoiceAnswers, ChoiceInsights>({
   computeInsights(ctx) {
     return computeChoiceInsights(ctx, choiceConfigSchema.parse(ctx.poll.config));
   },
+
+  summarizeAnswers(rows, { options }) {
+    const picked = new Set(rows.map((row) => row.optionId));
+    return options
+      .filter((option) => picked.has(option.id))
+      .map((option) => option.label)
+      .join(", ");
+  },
 });

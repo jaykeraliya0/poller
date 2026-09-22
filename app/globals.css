@@ -17,6 +17,10 @@
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar: var(--sidebar);
     --color-chart-5: var(--chart-5);
+    --color-viz-accent: var(--viz-accent);
+    --color-viz-accent-soft: var(--viz-accent-soft);
+    --color-viz-rest: var(--viz-rest);
+    --color-viz-track: var(--viz-track);
     --color-chart-4: var(--chart-4);
     --color-chart-3: var(--chart-3);
     --color-chart-2: var(--chart-2);
@@ -72,6 +76,12 @@
     --chart-3: oklch(0.45 0.017 213.2);
     --chart-4: oklch(0.378 0.015 216);
     --chart-5: oklch(0.275 0.011 216.9);
+    /* Data viz: one teal hue, validated as an ordinal pair (accent-soft < accent)
+       with the dataviz palette checks. Rest = de-emphasised bars, track = empty scale. */
+    --viz-accent: oklch(0.511 0.096 186.4);
+    --viz-accent-soft: oklch(0.74 0.085 186.4);
+    --viz-rest: oklch(0.83 0.008 220);
+    --viz-track: oklch(0.955 0.003 220);
     --radius: 0.625rem;
     --sidebar: oklch(0.987 0.002 197.1);
     --sidebar-foreground: oklch(0.148 0.004 228.8);
@@ -107,6 +117,11 @@
     --chart-3: oklch(0.45 0.017 213.2);
     --chart-4: oklch(0.378 0.015 216);
     --chart-5: oklch(0.275 0.011 216.9);
+    /* Dark steps chosen and validated against the dark card surface, not inverted. */
+    --viz-accent: oklch(0.74 0.105 186.4);
+    --viz-accent-soft: oklch(0.52 0.07 186.4);
+    --viz-rest: oklch(0.45 0.017 213);
+    --viz-track: oklch(0.275 0.011 216.9);
     --sidebar: oklch(0.218 0.008 223.9);
     --sidebar-foreground: oklch(0.987 0.002 197.1);
     --sidebar-primary: oklch(0.704 0.14 182.503);

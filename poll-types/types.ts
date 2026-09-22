@@ -41,6 +41,8 @@ export interface PollTypeDefinition<Answers = unknown, Insights = unknown> {
   /** Maps stored answers back to the form shape so voters can edit their vote. */
   toAnswerInput(rows: AnswerRow[]): Answers;
   computeInsights(ctx: InsightContext): Insights;
+  /** One-line, human-readable version of a response, for tables and CSV. */
+  summarizeAnswers(rows: AnswerRow[], ctx: AnswerContext): string;
 }
 
 export function definePollType<Answers, Insights>(

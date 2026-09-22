@@ -1,8 +1,9 @@
 import "server-only";
+import { cache } from "react";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { AppError, ErrorCode, toFieldErrors, type FieldErrors } from "@/lib/errors";
-import { canVote, canWithdrawVote } from "@/lib/poll/permissions";
+import { canViewResults, canVote, canWithdrawVote } from "@/lib/poll/permissions";
 import { isValidSlug } from "@/lib/poll/slug";
 import { voteEnvelopeSchema } from "@/lib/validation/vote";
 import { getPollType } from "@/poll-types/registry";
@@ -25,6 +26,9 @@ export async function loadPollBySlug(slug: string) {
     include: { options: { orderBy: { position: "asc" } } },
   });
 }
+
+/** Per-request memoised, so metadata and page share one query. */
+export const getPollBySlug = cache(loadPollBySlug);
 
 /**
  * This viewer's existing response: the account's vote first, otherwise this
@@ -54,6 +58,8 @@ export type CastVoteResult = {
   pollId: string;
   slug: string;
   updated: boolean;
+  /** Whether this voter may now see the results (drives the post-vote redirect). */
+  resultsVisible: boolean;
   /** Differs from the identity's token when this browser's token was taken by another account. */
   voterToken: string;
 };
@@ -126,13 +132,14 @@ export async function castVote(input: unknown, identity: VoterIdentity, now: Dat
       return { updated: false, voterToken };
     });
 
+  const resultsVisible = canViewResults(poll, { ...viewer, hasVoted: true }, now).allowed;
   try {
-    return { pollId: poll.id, slug: poll.slug, ...(await record()) };
+    return { pollId: poll.id, slug: poll.slug, resultsVisible, ...(await record()) };
   } catch (error) {
     // Double tap / two tabs: the other request inserted first. Run again so this
     // one sees that response and either updates it or reports ALREADY_VOTED.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return { pollId: poll.id, slug: poll.slug, ...(await record()) };
+      return { pollId: poll.id, slug: poll.slug, resultsVisible, ...(await record()) };
     }
     throw error;
   }

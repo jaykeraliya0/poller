@@ -1,26 +1,23 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { cache } from "react";
-import { CircleCheckIcon, LockIcon, LogInIcon } from "lucide-react";
+import { ChartColumnIcon, CircleCheckIcon, LockIcon, LogInIcon } from "lucide-react";
 import { PageContainer } from "@/components/layout/page-container";
 import { PollHeader } from "@/components/poll/poll-header";
 import { ButtonLink } from "@/components/shared/button-link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AnswerSummary } from "@/components/vote/answer-summary";
 import { VoteForm } from "@/components/vote/vote-form";
 import { formatRelative } from "@/lib/datetime";
 import { db } from "@/lib/db";
-import { canViewVotePage } from "@/lib/poll/permissions";
+import { canViewResults, canViewVotePage } from "@/lib/poll/permissions";
 import { getClosedAt } from "@/lib/poll/status";
 import { readVoterIdentity } from "@/lib/poll/viewer";
-import { findViewerResponse, loadPollBySlug } from "@/lib/poll/votes";
+import { findViewerResponse, getPollBySlug } from "@/lib/poll/votes";
 import { getPollType } from "@/poll-types/registry";
-import { getPollTypeVoteUI } from "@/poll-types/vote-inputs";
-
-const getPoll = cache(loadPollBySlug);
 
 export async function generateMetadata({ params }: PageProps<"/p/[slug]">): Promise<Metadata> {
-  const poll = await getPoll((await params).slug);
+  const poll = await getPollBySlug((await params).slug);
   if (!poll) return { title: "Poll not found" };
   // Polls are private-by-link: keep them out of search engines.
   return { title: poll.title, description: poll.description ?? "Cast your vote", robots: { index: false } };
@@ -28,7 +25,7 @@ export async function generateMetadata({ params }: PageProps<"/p/[slug]">): Prom
 
 export default async function VotePage({ params }: PageProps<"/p/[slug]">) {
   const { slug } = await params;
-  const poll = await getPoll(slug);
+  const poll = await getPollBySlug(slug);
   if (!poll) notFound();
 
   const identity = await readVoterIdentity();
@@ -37,7 +34,6 @@ export default async function VotePage({ params }: PageProps<"/p/[slug]">) {
   const now = new Date();
   const isOwner = poll.creatorId === identity.userId;
   const closedAt = getClosedAt(poll, now);
-  const { AnswerSummary } = getPollTypeVoteUI(poll.type);
 
   const yourVote = existing && (
     <Card>
@@ -45,7 +41,7 @@ export default async function VotePage({ params }: PageProps<"/p/[slug]">) {
         <CardTitle className="text-base">Your vote</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <AnswerSummary config={poll.config} options={poll.options} rows={existing.answers} />
+        <AnswerSummary type={poll.type} config={poll.config} options={poll.options} rows={existing.answers} />
         {existing.comment && <p className="border-l-2 pl-3 text-sm text-muted-foreground">{existing.comment}</p>}
       </CardContent>
     </Card>
@@ -129,9 +125,17 @@ export default async function VotePage({ params }: PageProps<"/p/[slug]">) {
     );
   }
 
+  const resultsVisible = canViewResults(poll, { userId: identity.userId, isOwner, hasVoted: Boolean(existing) }, now).allowed;
+
   return (
     <PageContainer className="flex flex-col gap-6 py-6">
       <PollHeader poll={poll} isOwner={isOwner} now={now} />
+      {resultsVisible && (
+        <ButtonLink href={`/p/${slug}/results`} variant="outline" size="lg" className="h-11 self-start">
+          <ChartColumnIcon data-icon="inline-start" aria-hidden />
+          See results
+        </ButtonLink>
+      )}
       {body}
     </PageContainer>
   );

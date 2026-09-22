@@ -1,61 +1,69 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeftIcon, UsersIcon } from "lucide-react";
+import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react";
 import { PageContainer } from "@/components/layout/page-container";
+import { AutoRefresh } from "@/components/insights/auto-refresh";
+import { PollResults } from "@/components/insights/poll-results";
+import { PollHeader } from "@/components/poll/poll-header";
+import { ClosePollDialog, ReopenPollButton } from "@/components/poll/poll-status-controls";
 import { SharePanel } from "@/components/poll/share-panel";
 import { ShareSheet } from "@/components/poll/share-sheet";
-import { StatusBadge } from "@/components/poll/status-badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ButtonLink } from "@/components/shared/button-link";
 import { requirePageOwner } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
-import { plural } from "@/lib/insights/outcome";
-import { getPollType } from "@/poll-types/registry";
+import { loadPollResults } from "@/lib/poll/results";
+import { canReopen, isPollOpen } from "@/lib/poll/status";
 import { pollShareUrl } from "@/lib/urls";
 
-export const metadata: Metadata = { title: "Manage poll" };
+export const metadata: Metadata = { title: "Manage poll", robots: { index: false } };
 
-// Insights, close/reopen and comments arrive in Phase 5; this is the landing spot after creating.
 export default async function ManagePollPage({ params, searchParams }: PageProps<"/polls/[id]/manage">) {
   const [{ id }, { created }] = await Promise.all([params, searchParams]);
-  const { poll } = await requirePageOwner(id, `/polls/${id}/manage`);
-  const responses = await db.pollResponse.count({ where: { pollId: poll.id } });
+  const { poll: base } = await requirePageOwner(id, `/polls/${id}/manage`);
+  const poll = await db.poll.findUniqueOrThrow({
+    where: { id: base.id },
+    include: { options: { orderBy: { position: "asc" } } },
+  });
+
+  const now = new Date();
+  const open = isPollOpen(poll, now);
+  const { insights, rows } = await loadPollResults(poll, now);
   const shareUrl = pollShareUrl(poll.slug);
 
   return (
     <PageContainer className="flex flex-col gap-6 py-6">
-      <Link
-        href="/dashboard"
-        className="inline-flex items-center gap-1.5 self-start text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeftIcon className="size-4" aria-hidden />
-        My polls
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeftIcon className="size-4" aria-hidden />
+          My polls
+        </Link>
+        {open && <AutoRefresh />}
+      </div>
 
-      <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge poll={poll} />
-          <span className="text-xs text-muted-foreground">{getPollType(poll.type).label}</span>
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight break-words">{poll.title}</h1>
-        {poll.description && <p className="text-muted-foreground">{poll.description}</p>}
-        <div className="flex flex-wrap items-center gap-3">
-          <ShareSheet url={shareUrl} title={poll.title} defaultOpen={created === "1"} />
-          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <UsersIcon className="size-4" aria-hidden />
-            {plural(responses, "response")}
-          </span>
-        </div>
-      </header>
+      <PollHeader poll={poll} isOwner={false} now={now} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Invite people to vote</CardTitle>
-          <CardDescription>Results and insights will appear here as votes come in.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SharePanel url={shareUrl} title={poll.title} />
-        </CardContent>
-      </Card>
+      <div className="flex flex-wrap gap-2">
+        <ShareSheet url={shareUrl} title={poll.title} defaultOpen={created === "1"} />
+        {open ? <ClosePollDialog pollId={poll.id} /> : canReopen(poll, now) && <ReopenPollButton pollId={poll.id} />}
+        <ButtonLink href={`/p/${poll.slug}/results`} variant="ghost" size="lg" className="h-11">
+          <ExternalLinkIcon data-icon="inline-start" aria-hidden />
+          Voter view
+        </ButtonLink>
+      </div>
+
+      <PollResults
+        poll={poll}
+        insights={insights}
+        rows={rows}
+        // The owner sees names on named polls, never on anonymous ones.
+        showNames={!poll.isAnonymous}
+        now={now}
+        emptyAction={
+          <div className="w-full max-w-md text-left">
+            <SharePanel url={shareUrl} title={poll.title} />
+          </div>
+        }
+      />
     </PageContainer>
   );
 }

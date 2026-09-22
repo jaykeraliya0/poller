@@ -19,15 +19,23 @@ test("a guest votes, changes their vote and withdraws it", async ({ page, browse
   await voter.getByLabel("Comment (optional)").fill("Anything but pizza");
   await voter.getByRole("button", { name: "Submit vote" }).click();
   await expect(voter.getByText("Your vote is in. Thanks!")).toBeVisible();
-  await expect(voter.getByText(/^You voted/)).toBeVisible();
 
-  // The form comes back prefilled for changing the vote.
+  // Public poll: voters land on the results straight away.
+  await expect(voter).toHaveURL(new RegExp(`${pollPath}/results$`));
+  await expect(voter.getByText("1 vote so far. We'll call a leader after 3.")).toBeVisible();
+  await expect(voter.getByText("Anything but pizza")).toBeVisible();
+
+  // Back on the vote page the form is prefilled for changing the vote.
+  await voter.getByRole("link", { name: "Change your vote" }).click();
+  await expect(voter.getByText(/^You voted/)).toBeVisible();
   await expect(voter.getByRole("radio", { name: "Sushi" })).toBeChecked();
   await expect(voter.getByLabel("Your name")).toHaveValue("Guest Gabe");
   await voter.getByRole("radio", { name: "Pizza" }).click();
   await voter.getByRole("button", { name: "Update vote" }).click();
   await expect(voter.getByText("Your vote was updated")).toBeVisible();
+  await expect(voter).toHaveURL(/\/results$/);
 
+  await voter.goto(pollPath);
   await voter.getByRole("button", { name: "Withdraw vote" }).click();
   await voter.getByRole("alertdialog").getByRole("button", { name: "Withdraw" }).click();
   await expect(voter.getByText("Your vote was withdrawn")).toBeVisible();
@@ -62,7 +70,8 @@ test("a guest marks availability per time slot", async ({ page, browser }) => {
   await expect(voter.getByText("2 of 2 slots answered")).toBeVisible();
   await voter.getByRole("button", { name: "Submit vote" }).click();
   await expect(voter.getByText("Your vote is in. Thanks!")).toBeVisible();
-  await expect(slots.nth(1).getByRole("radio", { name: "If need be" })).toBeChecked();
+  await expect(voter.getByText("1 yes", { exact: true })).toBeVisible();
+  await expect(voter.getByText("0 yes · 1 if need be")).toBeVisible();
 });
 
 test("polls that require sign-in ask guests to sign in first", async ({ page, browser }) => {
