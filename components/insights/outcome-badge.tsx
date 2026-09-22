@@ -24,7 +24,7 @@ export function OutcomeBadge({ outcome, open }: { outcome: Outcome; open: boolea
     case "TOO_FEW":
       return (
         <Badge variant="outline">
-          <HourglassIcon aria-hidden /> Early results
+          <HourglassIcon aria-hidden /> {open ? "Early results" : "Too few votes"}
         </Badge>
       );
     case "NO_SUPPORT":
@@ -34,6 +34,6 @@ export function OutcomeBadge({ outcome, open }: { outcome: Outcome; open: boolea
         </Badge>
       );
     case "NO_VOTES":
-      return <Badge variant="outline">No votes yet</Badge>;
+      return <Badge variant="outline">{open ? "No votes yet" : "No votes"}</Badge>;
   }
 }

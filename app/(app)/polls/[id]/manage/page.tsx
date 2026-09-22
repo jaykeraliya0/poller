@@ -5,6 +5,7 @@ import { BackLink } from "@/components/shared/back-link";
 import { AutoRefresh } from "@/components/insights/auto-refresh";
 import { BoardSection } from "@/components/insights/board-section";
 import { PollResults } from "@/components/insights/poll-results";
+import { AccessPanel } from "@/components/poll/access-panel";
 import { PollHeader } from "@/components/poll/poll-header";
 import { PollMoreMenu } from "@/components/poll/poll-more-menu";
 import { ClosePollDialog, ReopenPollButton } from "@/components/poll/poll-status-controls";
@@ -13,8 +14,9 @@ import { ShareSheet } from "@/components/poll/share-sheet";
 import { ButtonLink } from "@/components/shared/button-link";
 import { requirePageOwner } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
+import { listPollAccess } from "@/lib/poll/invites";
 import { loadPollResults } from "@/lib/poll/results";
-import { canReopen, isPollOpen } from "@/lib/poll/status";
+import { deadlinePassed, isPollOpen } from "@/lib/poll/status";
 import { pollShareUrl } from "@/lib/urls";
 import { getPollType } from "@/poll-types/registry";
 
@@ -30,8 +32,25 @@ export default async function ManagePollPage({ params, searchParams }: PageProps
 
   const now = new Date();
   const open = isPollOpen(poll, now);
-  const { insights, rows } = await loadPollResults(poll, now);
+  const isPrivate = poll.visibility === "PRIVATE";
+  const [{ insights, rows }, access] = await Promise.all([
+    loadPollResults(poll, now),
+    isPrivate ? listPollAccess(poll) : null,
+  ]);
   const shareUrl = pollShareUrl(poll.slug);
+  const linkDescription = isPrivate ? "Only people you invite can open it." : "Anyone with the link can vote.";
+
+  // Private polls keep this even when closed: access still decides who sees the results.
+  const accessSection = access && (
+    <BoardSection
+      id="access-heading"
+      title="Who's invited"
+      count={access.invites.length + access.groups.filter((group) => group.linked).length || undefined}
+      description="Only these people (and you) can open this poll."
+    >
+      <AccessPanel pollId={poll.id} access={access} />
+    </BoardSection>
+  );
 
   return (
     <AppPage>
@@ -47,12 +66,26 @@ export default async function ManagePollPage({ params, searchParams }: PageProps
         meta={<span className="text-sm text-muted-foreground">{getPollType(poll.type).label}</span>}
         actions={
           <>
-            <ShareSheet url={shareUrl} title={poll.title} defaultOpen={created === "1"} />
-            {open ? <ClosePollDialog pollId={poll.id} /> : canReopen(poll, now) && <ReopenPollButton pollId={poll.id} />}
-            <ButtonLink href={`/polls/${poll.id}/edit`} variant="outline" size="lg">
-              <PencilIcon data-icon="inline-start" aria-hidden />
-              Edit
-            </ButtonLink>
+            <ShareSheet
+              url={shareUrl}
+              title={poll.title}
+              description={linkDescription}
+              defaultOpen={created === "1"}
+            >
+              {access && <AccessPanel pollId={poll.id} access={access} />}
+            </ShareSheet>
+            {open ? (
+              <>
+                <ClosePollDialog pollId={poll.id} />
+                <ButtonLink href={`/polls/${poll.id}/edit`} variant="outline" size="lg">
+                  <PencilIcon data-icon="inline-start" aria-hidden />
+                  Edit
+                </ButtonLink>
+              </>
+            ) : (
+              // Closed polls are read-only; reopening is the way back to editing.
+              <ReopenPollButton pollId={poll.id} needsDeadline={deadlinePassed(poll, now)} />
+            )}
             <ButtonLink href={`/p/${poll.slug}/results`} variant="outline" size="lg">
               <ExternalLinkIcon data-icon="inline-start" aria-hidden />
               Voter view
@@ -70,16 +103,22 @@ export default async function ManagePollPage({ params, searchParams }: PageProps
         showNames={!poll.isAnonymous}
         now={now}
         emptyAction={
-          <div className="w-full text-left">
-            <SharePanel url={shareUrl} title={poll.title} />
-          </div>
+          (open || accessSection) && (
+            <div className="flex w-full flex-col gap-4 text-left">
+              {open && <SharePanel url={shareUrl} title={poll.title} />}
+              {accessSection}
+            </div>
+          )
         }
         rail={
-          open && (
-            <BoardSection id="share-heading" title="Share link" description="Anyone with the link can vote.">
-              <SharePanel url={shareUrl} title={poll.title} />
-            </BoardSection>
-          )
+          <>
+            {open && (
+              <BoardSection id="share-heading" title="Share link" description={linkDescription}>
+                <SharePanel url={shareUrl} title={poll.title} />
+              </BoardSection>
+            )}
+            {accessSection}
+          </>
         }
       />
     </AppPage>

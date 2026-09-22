@@ -14,6 +14,8 @@ export const RATE_LIMITS = {
   create: { limit: 10, windowMs: HOUR },
   vote: { limit: 30, windowMs: MINUTE },
   "vote-poll": { limit: 5, windowMs: MINUTE },
+  /** Adding invites or group members, per user. */
+  invite: { limit: 30, windowMs: HOUR },
 } as const;
 
 export type RateLimitScope = keyof typeof RATE_LIMITS;

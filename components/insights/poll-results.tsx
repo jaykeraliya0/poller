@@ -31,7 +31,15 @@ export function PollResults({ poll, insights, rows, showNames, now, emptyAction,
 
   if (common.totalResponses === 0) {
     return (
-      <EmptyState icon={InboxIcon} title="No votes yet" description="Results and insights will appear here as people vote.">
+      <EmptyState
+        icon={InboxIcon}
+        title={common.status === "CLOSED" ? "No votes" : "No votes yet"}
+        description={
+          common.status === "CLOSED"
+            ? "Nobody voted before the poll closed."
+            : "Results and insights will appear here as people vote."
+        }
+      >
         {emptyAction}
       </EmptyState>
     );

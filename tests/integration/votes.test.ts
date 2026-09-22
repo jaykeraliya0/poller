@@ -3,10 +3,11 @@ import { db } from "@/lib/db";
 import { castVote, withdrawVote, type VoterIdentity } from "@/lib/poll/votes";
 import { createAvailabilityPoll, createChoicePoll, createUser, resetDatabase } from "@/tests/setup/db";
 
-const guest = (voterToken = crypto.randomUUID()): VoterIdentity => ({ userId: null, userName: null, voterToken });
-const member = (user: { id: string; name: string }, voterToken = crypto.randomUUID()): VoterIdentity => ({
+const guest = (voterToken = crypto.randomUUID()): VoterIdentity => ({ userId: null, userName: null, userEmail: null, voterToken });
+const member = (user: { id: string; name: string; email: string }, voterToken = crypto.randomUUID()): VoterIdentity => ({
   userId: user.id,
   userName: user.name,
+  userEmail: user.email,
   voterToken,
 });
 

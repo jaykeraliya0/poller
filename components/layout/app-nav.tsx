@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutListIcon, SettingsIcon, type LucideIcon } from "lucide-react";
+import { InboxIcon, LayoutListIcon, SettingsIcon, UsersIcon, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; match: (path: string) => boolean };
@@ -15,6 +15,8 @@ const ITEMS: NavItem[] = [
     // A poll's manage and edit pages live under "My polls" too.
     match: (path) => path === "/dashboard" || (/^\/polls\/[^/]+\/(manage|edit)$/.test(path)),
   },
+  { href: "/shared", label: "Shared with me", icon: InboxIcon, match: (path) => path === "/shared" },
+  { href: "/groups", label: "Groups", icon: UsersIcon, match: (path) => path === "/groups" || path.startsWith("/groups/") },
   { href: "/settings", label: "Settings", icon: SettingsIcon, match: (path) => path === "/settings" },
 ];
 

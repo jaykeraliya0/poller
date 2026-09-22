@@ -5,11 +5,13 @@ import { PageContainer } from "@/components/layout/page-container";
 import { AutoRefresh } from "@/components/insights/auto-refresh";
 import { PollResults } from "@/components/insights/poll-results";
 import { PollHeader } from "@/components/poll/poll-header";
+import { PrivatePollNotice } from "@/components/poll/private-poll-notice";
 import { BackLink } from "@/components/shared/back-link";
 import { ButtonLink } from "@/components/shared/button-link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { db } from "@/lib/db";
 import { formatRelative } from "@/lib/datetime";
+import { buildViewer } from "@/lib/poll/access";
 import { canSeeVoterNames, canViewResults, type ResultsDenial } from "@/lib/poll/permissions";
 import { loadPollResults } from "@/lib/poll/results";
 import { isPollOpen } from "@/lib/poll/status";
@@ -19,6 +21,7 @@ import { findViewerResponse, getPollBySlug } from "@/lib/poll/votes";
 export async function generateMetadata({ params }: PageProps<"/p/[slug]/results">): Promise<Metadata> {
   const poll = await getPollBySlug((await params).slug);
   if (!poll) return { title: "Poll not found" };
+  if (poll.visibility === "PRIVATE") return { title: "Private poll", robots: { index: false } };
   return { title: `Results: ${poll.title}`, robots: { index: false } };
 }
 
@@ -46,14 +49,18 @@ export default async function ResultsPage({ params }: PageProps<"/p/[slug]/resul
   const identity = await readVoterIdentity();
   const existing =
     identity.userId || identity.voterToken ? await findViewerResponse(db, poll.id, identity) : null;
+  const viewer = await buildViewer(poll, identity, Boolean(existing));
   const now = new Date();
-  const viewer = { userId: identity.userId, isOwner: poll.creatorId === identity.userId, hasVoted: Boolean(existing) };
   const open = isPollOpen(poll, now);
   const access = canViewResults(poll, viewer, now);
 
-  const backLink = <BackLink href={`/p/${slug}`}>{!open ? "Poll" : existing ? "Change your vote" : "Vote"}</BackLink>;
+  const backLabel = !open ? "Poll" : !existing ? "Vote" : poll.allowVoteChange ? "Change your vote" : "Your vote";
+  const backLink = <BackLink href={`/p/${slug}`}>{backLabel}</BackLink>;
 
   if (!access.allowed) {
+    if (access.reason === "LOGIN_REQUIRED" || access.reason === "NOT_INVITED") {
+      return <PrivatePollNotice reason={access.reason} path={`/p/${slug}/results`} signedInAs={identity.userEmail} />;
+    }
     const message = hiddenMessage(access.reason, poll.closesAt, now);
     return (
       <PageContainer className="flex flex-col gap-7 py-7 lg:py-10">

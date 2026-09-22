@@ -16,6 +16,7 @@ const settings: PollSubmission["settings"] = {
   isAnonymous: false,
   requireLogin: false,
   resultsVisibility: "PUBLIC",
+  visibility: "PUBLIC",
   expectedParticipants: null,
 };
 
@@ -36,7 +37,7 @@ const edit = (poll: ChoicePoll, options: { id?: string; label: string }[], overr
 const voteOn = (poll: { slug: string }, optionId: string) =>
   castVote(
     { slug: poll.slug, answers: { optionIds: [optionId] }, voterName: "Voter" },
-    { userId: null, userName: null, voterToken: crypto.randomUUID() },
+    { userId: null, userName: null, userEmail: null, voterToken: crypto.randomUUID() },
   );
 
 const labelsOf = async (pollId: string) =>
@@ -60,7 +61,7 @@ describe("updatePollAction", () => {
       poll.id,
       edit(poll, [option(tacos), option(pizza, "Pizza 🍕"), { label: "Ramen" }], { title: "Lunch v2" }),
     );
-    expect(result).toEqual({ ok: true, data: { reopened: false } });
+    expect(result).toEqual({ ok: true, data: undefined });
     expect(await labelsOf(poll.id)).toEqual(["Tacos", "Pizza 🍕", "Ramen"]);
     expect(await db.poll.findUniqueOrThrow({ where: { id: poll.id } })).toMatchObject({ title: "Lunch v2" });
   });
@@ -126,26 +127,40 @@ describe("updatePollAction", () => {
     expect(result).toMatchObject({ code: "VALIDATION", fieldErrors: { options: [expect.any(String)] } });
   });
 
-  it("accepts an unchanged past deadline, and a new future one reopens the poll", async () => {
-    const past = new Date(Math.floor((Date.now() - HOUR) / 60_000) * 60_000);
-    await db.poll.update({ where: { id: poll.id }, data: { closesAt: past } });
+  it("refuses to edit a closed poll, whether closed by hand or by its deadline", async () => {
     const all = [option(pizza), option(sushi), option(tacos)];
+    const future = new Date(Date.now() + 24 * HOUR).toISOString();
 
-    const unchanged = await updatePollAction(
-      poll.id,
-      edit(poll, all, { title: "Still closed", settings: { ...settings, closesAt: past.toISOString() } }),
-    );
-    expect(unchanged).toEqual({ ok: true, data: { reopened: false } });
-
-    const otherPast = new Date(past.getTime() - HOUR).toISOString();
-    expect(await updatePollAction(poll.id, edit(poll, all, { settings: { ...settings, closesAt: otherPast } }))).toMatchObject({
-      fieldErrors: { "settings.closesAt": ["Deadline must be in the future"] },
+    await db.poll.update({ where: { id: poll.id }, data: { closedAt: new Date() } });
+    expect(await updatePollAction(poll.id, edit(poll, all, { title: "Changed" }))).toMatchObject({
+      ok: false,
+      code: "POLL_CLOSED",
+      message: expect.stringMatching(/Reopen/),
     });
 
-    const future = new Date(Date.now() + 24 * HOUR).toISOString();
-    expect(await updatePollAction(poll.id, edit(poll, all, { settings: { ...settings, closesAt: future } }))).toEqual({
-      ok: true,
-      data: { reopened: true },
+    // A new deadline doesn't sneak a reopen through the edit form either.
+    await db.poll.update({ where: { id: poll.id }, data: { closedAt: null, closesAt: new Date(Date.now() - HOUR) } });
+    expect(
+      await updatePollAction(poll.id, edit(poll, all, { title: "Changed", settings: { ...settings, closesAt: future } })),
+    ).toMatchObject({ ok: false, code: "POLL_CLOSED" });
+
+    expect(await db.poll.findUniqueOrThrow({ where: { id: poll.id } })).toMatchObject({ title: "Test poll" });
+    expect(await labelsOf(poll.id)).toEqual(["Pizza", "Sushi", "Tacos"]);
+  });
+
+  it("keeps an unchanged future deadline and rejects a past one", async () => {
+    const deadline = new Date(Math.floor((Date.now() + 2 * HOUR) / 60_000) * 60_000);
+    await db.poll.update({ where: { id: poll.id }, data: { closesAt: deadline } });
+    const all = [option(pizza), option(sushi), option(tacos)];
+
+    expect(
+      await updatePollAction(poll.id, edit(poll, all, { settings: { ...settings, closesAt: deadline.toISOString() } })),
+    ).toMatchObject({ ok: true });
+    expect((await db.poll.findUniqueOrThrow({ where: { id: poll.id } })).closesAt).toEqual(deadline);
+
+    const past = new Date(Date.now() - HOUR).toISOString();
+    expect(await updatePollAction(poll.id, edit(poll, all, { settings: { ...settings, closesAt: past } }))).toMatchObject({
+      fieldErrors: { "settings.closesAt": ["Deadline must be in the future"] },
     });
   });
 

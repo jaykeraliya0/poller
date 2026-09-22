@@ -19,6 +19,7 @@ export type PollSubmission = {
     isAnonymous: boolean;
     requireLogin: boolean;
     resultsVisibility: PollSettings["resultsVisibility"];
+    visibility: PollSettings["visibility"];
     expectedParticipants: number | null;
   };
 };

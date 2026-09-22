@@ -22,6 +22,11 @@ enum PollTemplate {
   CUSTOM
 }
 
+enum PollVisibility {
+  PUBLIC
+  PRIVATE
+}
+
 enum ResultsVisibility {
   PUBLIC
   AFTER_VOTE
@@ -38,6 +43,7 @@ model User {
 
   polls     Poll[]
   responses PollResponse[]
+  groups    Group[]
 
   @@map("users")
 }
@@ -58,6 +64,8 @@ model Poll {
   isAnonymous          Boolean           @default(false) @map("is_anonymous")
   requireLogin         Boolean           @default(false) @map("require_login")
   resultsVisibility    ResultsVisibility @default(PUBLIC) @map("results_visibility")
+  /// PRIVATE polls are open only to the creator, direct invites and members of linked groups.
+  visibility           PollVisibility    @default(PUBLIC)
   expectedParticipants Int?              @map("expected_participants")
   createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz
   updatedAt            DateTime          @updatedAt @map("updated_at") @db.Timestamptz
@@ -65,6 +73,8 @@ model Poll {
   creator   User           @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   options   PollOption[]
   responses PollResponse[]
+  invites   PollInvite[]
+  groups    PollGroup[]
 
   @@index([creatorId, createdAt(sort: Desc)])
   @@map("polls")
@@ -124,4 +134,61 @@ model Answer {
   @@id([responseId, optionId])
   @@index([optionId])
   @@map("answers")
+}
+
+/// Access to a private poll, by email so people can be invited before they sign up.
+model PollInvite {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  pollId    String   @map("poll_id") @db.Uuid
+  email     String   @db.Citext
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  poll Poll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, email])
+  @@index([email])
+  @@map("poll_invites")
+}
+
+/// A creator's saved list of people. Only its owner ever sees it.
+model Group {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  ownerId   String   @map("owner_id") @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  owner   User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members GroupMember[]
+  polls   PollGroup[]
+
+  @@unique([ownerId, name])
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@map("groups")
+}
+
+model GroupMember {
+  groupId   String   @map("group_id") @db.Uuid
+  email     String   @db.Citext
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, email])
+  @@index([email])
+  @@map("group_members")
+}
+
+/// A group shared with a poll. Live: membership changes apply to the poll straight away.
+model PollGroup {
+  pollId    String   @map("poll_id") @db.Uuid
+  groupId   String   @map("group_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  poll  Poll  @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([pollId, groupId])
+  @@index([groupId])
+  @@map("poll_groups")
 }

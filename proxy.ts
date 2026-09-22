@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { VOTER_TOKEN_COOKIE, createVoterToken, voterTokenCookieOptions } from "@/lib/voter-token";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/polls", "/settings"];
+const PROTECTED_PREFIXES = ["/dashboard", "/polls", "/settings", "/shared", "/groups"];
 
 // Auth.js session cookie names (plain and __Secure- on https; large tokens are chunked as `.0`, `.1`, …).
 const SESSION_COOKIE = /^(__Secure-)?authjs\.session-token(\.\d+)?$/;
@@ -40,5 +40,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/polls/:path*", "/settings/:path*", "/p/:path*"],
+  matcher: ["/dashboard/:path*", "/polls/:path*", "/settings/:path*", "/shared/:path*", "/groups/:path*", "/p/:path*"],
 };

@@ -12,7 +12,7 @@ import { STICKY_BAR_PADDING, StickyActionBar } from "@/components/shared/sticky-
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { BallotPreview } from "./ballot-preview";
-import type { PollTemplate, PollType, ResultsVisibility } from "@/generated/prisma/enums";
+import type { PollTemplate, PollType, PollVisibility, ResultsVisibility } from "@/generated/prisma/enums";
 import type { ActionFailure, FieldErrors } from "@/lib/errors";
 import { parsePollSubmission, type PollSubmission } from "@/lib/poll/submission";
 import type { PollTemplateDefinition } from "@/lib/poll/templates";
@@ -43,6 +43,7 @@ export type EditablePoll = {
   isAnonymous: boolean;
   requireLogin: boolean;
   resultsVisibility: ResultsVisibility;
+  visibility: PollVisibility;
   expectedParticipants: number | null;
   responseCount: number;
   votedOptionIds: string[];
@@ -86,6 +87,7 @@ function initialDraft(props: PollFormProps): Draft {
       isAnonymous: poll.isAnonymous,
       requireLogin: poll.requireLogin,
       resultsVisibility: poll.resultsVisibility,
+      visibility: poll.visibility,
       expectedParticipants: poll.expectedParticipants?.toString() ?? "",
     },
   };
@@ -128,7 +130,8 @@ export function PollForm(props: PollFormProps) {
     settings: settingsToSubmission(draft.settings),
   };
 
-  // Mirrors the server: an unchanged saved deadline may already be in the past.
+  // An unchanged saved deadline that has since passed means the poll closed while
+  // the form was open: let the server say so instead of flagging the field.
   const deadlineUnchanged =
     editing?.closesAt != null && submission.settings.closesAt === editing.closesAt.toISOString();
   const validate = () =>
@@ -181,7 +184,7 @@ export function PollForm(props: PollFormProps) {
       }
       const result = await updatePollAction(editing.id, submission);
       if (!result.ok) return handleFailure(result);
-      toast.success(result.data.reopened ? "Changes saved. The poll is open again." : "Changes saved");
+      toast.success("Changes saved");
       router.push(`/polls/${editing.id}/manage`);
     });
   };

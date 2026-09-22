@@ -5,7 +5,7 @@ import { createSlug } from "@/lib/poll/slug";
 /** Wipes every table between tests. Order-independent thanks to CASCADE. */
 export async function resetDatabase() {
   await db.$executeRawUnsafe(
-    'TRUNCATE TABLE "answers", "responses", "poll_options", "polls", "users" RESTART IDENTITY CASCADE',
+    'TRUNCATE TABLE "answers", "responses", "poll_options", "poll_invites", "poll_groups", "group_members", "groups", "polls", "users" RESTART IDENTITY CASCADE',
   );
 }
 

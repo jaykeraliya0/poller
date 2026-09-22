@@ -9,13 +9,15 @@ import { isPollOpen } from "./status";
 
 export type PollRules = Pick<
   Poll,
-  "closesAt" | "closedAt" | "allowVoteChange" | "isAnonymous" | "requireLogin" | "resultsVisibility"
+  "closesAt" | "closedAt" | "allowVoteChange" | "isAnonymous" | "requireLogin" | "resultsVisibility" | "visibility"
 >;
 
 export type Viewer = {
   userId: string | null;
   isOwner: boolean;
   hasVoted: boolean;
+  /** Invited directly or through a linked group. Only matters on private polls. */
+  isInvited: boolean;
 };
 
 export type Decision<Reason extends string> = { allowed: true } | { allowed: false; reason: Reason };
@@ -23,14 +25,30 @@ export type Decision<Reason extends string> = { allowed: true } | { allowed: fal
 const allow = { allowed: true } as const;
 const deny = <R extends string>(reason: R) => ({ allowed: false, reason }) as const;
 
-export function canViewVotePage(poll: PollRules, viewer: Viewer): Decision<"LOGIN_REQUIRED"> {
+export type AccessDenial = "LOGIN_REQUIRED" | "NOT_INVITED";
+
+/**
+ * Whether the viewer may see the poll at all. Private polls are for the owner
+ * and invitees only, so they always need an account to tell who's asking.
+ */
+export function canAccessPoll(poll: PollRules, viewer: Viewer): Decision<AccessDenial> {
+  if (poll.visibility === "PUBLIC" || viewer.isOwner) return allow;
+  if (!viewer.userId) return deny(ErrorCode.LOGIN_REQUIRED);
+  return viewer.isInvited ? allow : deny(ErrorCode.NOT_INVITED);
+}
+
+export function canViewVotePage(poll: PollRules, viewer: Viewer): Decision<AccessDenial> {
+  const access = canAccessPoll(poll, viewer);
+  if (!access.allowed) return access;
   return poll.requireLogin && !viewer.userId ? deny(ErrorCode.LOGIN_REQUIRED) : allow;
 }
 
-export type VoteDenial = "POLL_CLOSED" | "LOGIN_REQUIRED" | "ALREADY_VOTED";
+export type VoteDenial = "POLL_CLOSED" | "ALREADY_VOTED" | AccessDenial;
 
 /** Submitting a new vote, or replacing an existing one. Owners vote like anyone. */
 export function canVote(poll: PollRules, viewer: Viewer, now: Date = new Date()): Decision<VoteDenial> {
+  const access = canAccessPoll(poll, viewer);
+  if (!access.allowed) return access;
   if (!isPollOpen(poll, now)) return deny(ErrorCode.POLL_CLOSED);
   if (poll.requireLogin && !viewer.userId) return deny(ErrorCode.LOGIN_REQUIRED);
   if (viewer.hasVoted && !poll.allowVoteChange) return deny(ErrorCode.ALREADY_VOTED);
@@ -42,7 +60,9 @@ export function canWithdrawVote(
   poll: PollRules,
   viewer: Viewer,
   now: Date = new Date(),
-): Decision<"POLL_CLOSED" | "VOTE_CHANGE_DISABLED" | "NOT_FOUND"> {
+): Decision<"POLL_CLOSED" | "VOTE_CHANGE_DISABLED" | "NOT_FOUND" | AccessDenial> {
+  const access = canAccessPoll(poll, viewer);
+  if (!access.allowed) return access;
   if (!viewer.hasVoted) return deny(ErrorCode.NOT_FOUND);
   if (!isPollOpen(poll, now)) return deny(ErrorCode.POLL_CLOSED);
   if (!poll.allowVoteChange) return deny(ErrorCode.VOTE_CHANGE_DISABLED);
@@ -55,8 +75,11 @@ export function canViewResults(
   poll: PollRules,
   viewer: Viewer,
   now: Date = new Date(),
-): Decision<ResultsDenial> {
+): Decision<ResultsDenial | AccessDenial> {
   if (viewer.isOwner) return allow;
+  // On a private poll, "PUBLIC" results mean everyone invited.
+  const access = canAccessPoll(poll, viewer);
+  if (!access.allowed) return access;
   const closed = !isPollOpen(poll, now);
   switch (poll.resultsVisibility) {
     case "PUBLIC":

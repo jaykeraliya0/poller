@@ -15,7 +15,7 @@ const form = (confirmation: string) => {
   data.set("confirmation", confirmation);
   return data;
 };
-const guest = () => ({ userId: null, userName: null, voterToken: crypto.randomUUID() });
+const guest = () => ({ userId: null, userName: null, userEmail: null, voterToken: crypto.randomUUID() });
 
 describe("deleteAccountAction", () => {
   beforeEach(async () => {
@@ -39,6 +39,7 @@ describe("deleteAccountAction", () => {
     await castVote({ slug: otherPoll.slug, answers: { optionIds: [otherPoll.options[0].id] }, voterName: "L" }, {
       userId: leaving.id,
       userName: "Leaving",
+      userEmail: leaving.email,
       voterToken: "t",
     });
     signInAs(leaving);

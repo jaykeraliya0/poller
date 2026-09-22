@@ -58,3 +58,23 @@ export async function requirePageOwner(pollId: string, path: string) {
   if (!poll) notFound();
   return { user, poll };
 }
+
+const groupIdSchema = z.uuid();
+
+/** Loads a group the current user owns. Other people's groups don't exist, as far as they can tell. */
+export async function requireGroupOwner(groupId: string) {
+  const user = await requireUser();
+  if (!groupIdSchema.safeParse(groupId).success) throw new AppError(ErrorCode.NOT_FOUND, "We couldn't find that group.");
+  const group = await db.group.findFirst({ where: { id: groupId, ownerId: user.id } });
+  if (!group) throw new AppError(ErrorCode.NOT_FOUND, "We couldn't find that group.");
+  return { user, group };
+}
+
+/** For group pages: login redirect if signed out, 404 if not their group. */
+export async function requirePageGroupOwner(groupId: string, path: string) {
+  const user = await requirePageUser(path);
+  if (!groupIdSchema.safeParse(groupId).success) notFound();
+  const group = await db.group.findFirst({ where: { id: groupId, ownerId: user.id } });
+  if (!group) notFound();
+  return { user, group };
+}
