@@ -19,7 +19,12 @@ describe("parsePollListParams", () => {
   });
 
   it("ignores unknown statuses and takes the first of repeated params", () => {
-    expect(parsePollListParams({ status: "archived", page: ["2", "5"] })).toEqual({ filter: "all", q: "", page: 2 });
+    expect(parsePollListParams({ status: "deleted", page: ["2", "5"] })).toEqual({ filter: "all", q: "", page: 2 });
+  });
+
+  it("only accepts the filters a list offers", () => {
+    expect(parsePollListParams({ status: "archived" }).filter).toBe("archived");
+    expect(parsePollListParams({ status: "archived" }, ["all", "open", "closed"]).filter).toBe("all");
   });
 
   it("caps very long searches", () => {

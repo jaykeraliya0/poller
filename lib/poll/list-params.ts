@@ -1,5 +1,8 @@
-/** Filter, search and page for the "My polls" and "Shared with me" lists, all kept in the URL. */
-export const POLL_FILTERS = ["all", "open", "closed"] as const;
+/**
+ * Filter, search and page for the "My polls" and "Shared with me" lists, all
+ * kept in the URL. "archived" only exists on the owner's list.
+ */
+export const POLL_FILTERS = ["all", "open", "closed", "archived"] as const;
 export type PollFilter = (typeof POLL_FILTERS)[number];
 
 export type PollListParams = { filter: PollFilter; q: string; page: number };
@@ -13,9 +16,12 @@ type SearchParams = Record<string, string | string[] | undefined>;
 
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
-export function parsePollListParams(searchParams: SearchParams): PollListParams {
+export function parsePollListParams(
+  searchParams: SearchParams,
+  allowed: readonly PollFilter[] = POLL_FILTERS,
+): PollListParams {
   const status = first(searchParams.status);
-  const filter = POLL_FILTERS.find((value) => value === status) ?? "all";
+  const filter = allowed.find((value) => value === status) ?? "all";
   const q = (first(searchParams.q) ?? "").trim().slice(0, MAX_QUERY_LENGTH);
   const page = Number(first(searchParams.page));
   return { filter, q, page: Number.isSafeInteger(page) && page > 0 ? page : 1 };

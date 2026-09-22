@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LockIcon, LockOpenIcon } from "lucide-react";
+import { ArchiveRestoreIcon, LockIcon, LockOpenIcon } from "lucide-react";
 import { toast } from "sonner";
-import { closePollAction, reopenPollAction } from "@/actions/polls";
+import { closePollAction, reopenPollAction, unarchivePollAction } from "@/actions/polls";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -181,5 +181,29 @@ export function ReopenPollButton({ pollId, needsDeadline }: ReopenPollButtonProp
         </form>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+/** Brings an archived poll back to the main lists. It stays closed until reopened. */
+export function UnarchivePollButton({ pollId }: { pollId: string }) {
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+
+  const unarchive = () =>
+    startTransition(async () => {
+      const result = await unarchivePollAction(pollId);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success("Poll unarchived");
+      router.refresh();
+    });
+
+  return (
+    <Button variant="outline" size="lg" disabled={pending} onClick={unarchive}>
+      {pending ? <Spinner data-icon="inline-start" /> : <ArchiveRestoreIcon data-icon="inline-start" aria-hidden />}
+      Unarchive
+    </Button>
   );
 }

@@ -27,6 +27,7 @@
     "@date-fns/tz": "^1.5.0",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
+    "@react-pdf/renderer": "^4.9.0",
     "argon2": "^0.45.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

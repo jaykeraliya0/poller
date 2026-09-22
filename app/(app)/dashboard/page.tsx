@@ -40,9 +40,10 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   return (
     <AppPage>
       <QueryToast param="deleted" value="1" message="Poll deleted" />
+      <QueryToast param="archived" value="1" message="Poll archived. Find it under Archived." />
       <QueryToast param="verified" value="1" message="Email confirmed" />
 
-      {counts.all === 0 ? (
+      {counts.all + counts.archived === 0 ? (
         <>
           <PageHeader title="My polls" />
           <section aria-labelledby="empty-heading" className="panel flex flex-col gap-6 p-5 sm:p-7">
@@ -68,7 +69,14 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           <PollBrowser
             basePath="/dashboard"
             detailHeading="Responses"
-            polls={summaries} params={{ ...params, page }} counts={counts} total={total} pageCount={pageCount} />
+            polls={summaries}
+            params={{ ...params, page }}
+            counts={counts}
+            total={total}
+            pageCount={pageCount}
+            filters={["all", "open", "closed", "archived"]}
+            selectable
+          />
         </>
       )}
     </AppPage>

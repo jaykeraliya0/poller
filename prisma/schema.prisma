@@ -78,6 +78,8 @@ model Poll {
   remindedAt           DateTime?         @map("reminded_at") @db.Timestamptz
   /// The automatic reminder before the deadline. Cleared when the deadline moves.
   autoRemindedAt       DateTime?         @map("auto_reminded_at") @db.Timestamptz
+  /// Archived polls are closed, read-only and kept off the owner's main lists. Unarchive to reopen or edit.
+  archivedAt           DateTime?         @map("archived_at") @db.Timestamptz
   /// The "poll closed" email. Cleared on reopen, so closing again sends fresh results.
   resultsEmailedAt     DateTime?         @map("results_emailed_at") @db.Timestamptz
   createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz
@@ -91,6 +93,7 @@ model Poll {
   inviteEmails PollInviteEmail[]
 
   @@index([creatorId, createdAt(sort: Desc)])
+  @@index([creatorId, archivedAt])
   @@map("polls")
 }
 

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ExternalLinkIcon, PencilIcon } from "lucide-react";
+import { ArchiveIcon, ExternalLinkIcon, PencilIcon } from "lucide-react";
 import { AppPage } from "@/components/layout/app-page";
 import { BackLink } from "@/components/shared/back-link";
 import { AutoRefresh } from "@/components/insights/auto-refresh";
@@ -9,10 +9,11 @@ import { AccessPanel } from "@/components/poll/access-panel";
 import { PollHeader } from "@/components/poll/poll-header";
 import { PollMoreMenu } from "@/components/poll/poll-more-menu";
 import { ReminderControl } from "@/components/poll/reminder-control";
-import { ClosePollDialog, ReopenPollButton } from "@/components/poll/poll-status-controls";
+import { ClosePollDialog, ReopenPollButton, UnarchivePollButton } from "@/components/poll/poll-status-controls";
 import { SharePanel } from "@/components/poll/share-panel";
 import { ShareSheet } from "@/components/poll/share-sheet";
 import { ButtonLink } from "@/components/shared/button-link";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { requirePageOwner } from "@/lib/auth/guards";
 import { formatRelative } from "@/lib/datetime";
 import { db } from "@/lib/db";
@@ -68,7 +69,9 @@ export default async function ManagePollPage({ params, searchParams }: PageProps
   return (
     <AppPage>
       <div className="flex items-center justify-between gap-3">
-        <BackLink href="/dashboard">My polls</BackLink>
+        <BackLink href={poll.archivedAt ? "/dashboard?status=archived" : "/dashboard"}>
+          {poll.archivedAt ? "Archived polls" : "My polls"}
+        </BackLink>
         {open && <AutoRefresh />}
       </div>
 
@@ -95,6 +98,9 @@ export default async function ManagePollPage({ params, searchParams }: PageProps
                   Edit
                 </ButtonLink>
               </>
+            ) : poll.archivedAt ? (
+              // Archived polls come back to the main list first; reopening is a separate step.
+              <UnarchivePollButton pollId={poll.id} />
             ) : (
               // Closed polls are read-only; reopening is the way back to editing.
               <ReopenPollButton pollId={poll.id} needsDeadline={deadlinePassed(poll, now)} />
@@ -103,10 +109,26 @@ export default async function ManagePollPage({ params, searchParams }: PageProps
               <ExternalLinkIcon data-icon="inline-start" aria-hidden />
               Voter view
             </ButtonLink>
-            <PollMoreMenu pollId={poll.id} title={poll.title} responseCount={insights.common.totalResponses} />
+            <PollMoreMenu
+              pollId={poll.id}
+              title={poll.title}
+              responseCount={insights.common.totalResponses}
+              archived={poll.archivedAt !== null}
+            />
           </>
         }
       />
+
+      {poll.archivedAt && (
+        <Alert>
+          <ArchiveIcon aria-hidden />
+          <AlertTitle>Archived {formatRelative(poll.archivedAt, now)}</AlertTitle>
+          <AlertDescription>
+            It&apos;s closed and off your main list, but everything is kept: results, votes and the link. Unarchive it to
+            reopen or edit it.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <PollResults
         poll={poll}

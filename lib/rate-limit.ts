@@ -21,6 +21,8 @@ export const RATE_LIMITS = {
   "reset-email": { limit: 3, windowMs: HOUR },
   /** Setting a new password from a reset link, per IP. */
   "reset-submit": { limit: 10, windowMs: 15 * MINUTE },
+  /** Downloading exports (PDFs are rendered on the server), per user. */
+  export: { limit: 30, windowMs: 10 * MINUTE },
   /** Resending the confirmation email, per user. */
   "verify-email": { limit: 3, windowMs: HOUR },
 } as const;
