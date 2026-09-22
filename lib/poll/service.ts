@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { AppError, ErrorCode, type FieldErrors } from "@/lib/errors";
 import { stableStringify } from "@/lib/json";
+import { POLLS_PER_PAGE, type PollFilter, type PollListParams } from "./list-params";
 import { canReopen, isPollOpen } from "./status";
 import { createSlug } from "./slug";
 import { parsePollSubmission, type PollSubmission } from "./submission";
@@ -37,10 +38,48 @@ export async function createPoll(creatorId: string, input: unknown) {
   }
 }
 
-export async function listPollsForOwner(creatorId: string) {
-  return db.poll.findMany({
-    where: { creatorId },
-    orderBy: { createdAt: "desc" },
+/** Prisma filter matching the polls getPollStatus would call open or closed at `now`. */
+function statusWhere(filter: PollFilter, now: Date): Prisma.PollWhereInput {
+  if (filter === "closed") return { OR: [{ closedAt: { lte: now } }, { closesAt: { lte: now } }] };
+  if (filter === "open") {
+    return {
+      AND: [
+        { OR: [{ closedAt: null }, { closedAt: { gt: now } }] },
+        { OR: [{ closesAt: null }, { closesAt: { gt: now } }] },
+      ],
+    };
+  }
+  return {};
+}
+
+/**
+ * One page of an owner's polls, newest first, plus the counts the list needs.
+ * `page` comes back clamped to the last page, so callers can fix a stale URL.
+ */
+export async function listPollsForOwner(
+  creatorId: string,
+  { filter, q, page }: PollListParams,
+  now: Date = new Date(),
+) {
+  const where: Prisma.PollWhereInput = {
+    creatorId,
+    ...statusWhere(filter, now),
+    ...(q ? { title: { contains: q, mode: "insensitive" } } : {}),
+  };
+  const [all, open, total] = await Promise.all([
+    db.poll.count({ where: { creatorId } }),
+    db.poll.count({ where: { creatorId, ...statusWhere("open", now) } }),
+    db.poll.count({ where }),
+  ]);
+
+  const pageCount = Math.max(1, Math.ceil(total / POLLS_PER_PAGE));
+  const currentPage = Math.min(page, pageCount);
+  const polls = await db.poll.findMany({
+    where,
+    // The id tiebreak keeps pages stable when polls share a timestamp.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (currentPage - 1) * POLLS_PER_PAGE,
+    take: POLLS_PER_PAGE,
     select: {
       id: true,
       slug: true,
@@ -53,6 +92,14 @@ export async function listPollsForOwner(creatorId: string) {
       _count: { select: { responses: true } },
     },
   });
+
+  return {
+    polls,
+    total,
+    page: currentPage,
+    pageCount,
+    counts: { all, open, closed: all - open } satisfies Record<PollFilter, number>,
+  };
 }
 
 /** Closes an open poll now. The owner check happens in the caller (requireOwner). */
