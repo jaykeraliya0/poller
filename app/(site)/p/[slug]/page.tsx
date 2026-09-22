@@ -45,21 +45,8 @@ export default async function VotePage({ params }: PageProps<"/p/[slug]">) {
   );
 
   let body: React.ReactNode;
-  if (!canViewVotePage(poll, { userId: identity.userId, isOwner, hasVoted: false }).allowed) {
-    body = (
-      <Alert className="max-w-2xl">
-        <LockIcon aria-hidden />
-        <AlertTitle>Sign in to vote</AlertTitle>
-        <AlertDescription className="flex flex-col items-start gap-3">
-          The organiser asked voters to sign in, so everyone votes only once.
-          <ButtonLink href={`/login?next=${encodeURIComponent(`/p/${slug}`)}`} size="lg">
-            <LogInIcon data-icon="inline-start" aria-hidden />
-            Sign in
-          </ButtonLink>
-        </AlertDescription>
-      </Alert>
-    );
-  } else if (closedAt) {
+  // A closed poll reads the same for everyone: no point asking to sign in to vote.
+  if (closedAt) {
     body = (
       <div className="flex max-w-2xl flex-col gap-4">
         <Alert>
@@ -72,6 +59,20 @@ export default async function VotePage({ params }: PageProps<"/p/[slug]">) {
         </Alert>
         {yourVote}
       </div>
+    );
+  } else if (!canViewVotePage(poll, { userId: identity.userId, isOwner, hasVoted: false }).allowed) {
+    body = (
+      <Alert className="max-w-2xl">
+        <LockIcon aria-hidden />
+        <AlertTitle>Sign in to vote</AlertTitle>
+        <AlertDescription className="flex flex-col items-start gap-3">
+          The organiser asked voters to sign in, so everyone votes only once.
+          <ButtonLink href={`/login?next=${encodeURIComponent(`/p/${slug}`)}`} size="lg">
+            <LogInIcon data-icon="inline-start" aria-hidden />
+            Sign in
+          </ButtonLink>
+        </AlertDescription>
+      </Alert>
     );
   } else if (existing && !poll.allowVoteChange) {
     body = (

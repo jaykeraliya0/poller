@@ -26,7 +26,7 @@ export function getPollStatus(poll: PollTiming, now: Date = new Date()): PollSta
   return "OPEN";
 }
 
-/** Owners may reopen a manually closed poll only while its deadline is still ahead. */
-export function canReopen(poll: PollTiming, now: Date = new Date()): boolean {
-  return poll.closedAt !== null && (poll.closesAt === null || poll.closesAt > now);
+/** Reopening a poll whose deadline has passed needs a new deadline (or none). */
+export function deadlinePassed(poll: PollTiming, now: Date = new Date()): boolean {
+  return poll.closesAt !== null && poll.closesAt <= now;
 }

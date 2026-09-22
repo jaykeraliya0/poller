@@ -51,6 +51,8 @@ test("organiser watches live results come in, then closes the poll", async ({ pa
   await expect(page.getByText("Poll closed. These are the final results.")).toBeVisible();
   await expect(page.getByText("Winner")).toBeVisible();
   await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible();
+  // Closed polls are read-only until reopened.
+  await expect(page.getByRole("link", { name: "Edit" })).toHaveCount(0);
 
   await lastVoter.goto(pollPath);
   await expect(lastVoter.getByText("This poll is closed")).toBeVisible();

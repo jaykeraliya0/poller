@@ -31,7 +31,7 @@ Built with **Next.js 16** (App Router, Server Actions), **shadcn/ui** (Base UI),
 | **Ranking** | Taps options in order of preference (top N or all) | Borda points, average rank, first-choice share, tie detection, rank-breakdown heatmap, head-to-head matrix with Condorcet winner |
 | **Rating** | Scores each option 1–5 or 1–10 | Average, median, histogram, **"opinions split"** when many rate very low *and* very high, diverging sentiment bars, average ± spread plot |
 
-**For the organiser:** templates for the four use cases, a dashboard, a live manage page (refreshes every 15 s), share link / native share sheet, deadline and close/reopen, anonymous or named voting, "require sign-in", results visibility (public / after voting / after close / owner only), expected-participants response rate, editing after publish, CSV export, and deleting polls or the account.
+**For the organiser:** templates for the four use cases, a dashboard, a live manage page (refreshes every 15 s), share link / native share sheet, deadline and close/reopen, anonymous or named voting, "require sign-in", results visibility (public / after voting / after close / owner only), expected-participants response rate, editing while the poll is open, CSV export, and deleting polls or the account.
 
 **For voters:** no account needed (unless the organiser requires one), change or withdraw a vote while the poll is open, and land on the results straight after voting when allowed.
 
@@ -97,7 +97,8 @@ flowchart LR
 - **Create:** `requireUser` → rate limit (10/h/user) → validate details, settings and type setup in one pass → insert poll + options in one transaction → manage page with the share dialog.
 - **Vote:** rate limits (30/min/IP, 5/min/poll/IP) → load poll → open? sign-in rule? answers valid for *this* poll's options? → transaction: find the viewer's response (account first, then browser token) → update or insert → results page.
 - **Results:** `canViewResults` (permission matrix below) → load responses → `computeInsights` (common + type-specific) → summary, charts, analysis (standings over time, turnout, type-specific breakdowns), comments, who-voted list.
-- **Close/reopen:** owner check → conditional update (so two concurrent closes can't both succeed).
+- **Close/reopen:** owner check → conditional update (so two concurrent closes can't both succeed). Reopening after the deadline has passed needs a new deadline (or none).
+- **Edit:** owner check → closed polls are refused (`POLL_CLOSED`; reopen first) → validate → vote-aware locks → transaction whose poll update only applies while the poll is still open.
 
 ### Permission matrix
 
@@ -238,6 +239,8 @@ Every case from the design doc has defined behaviour and a test.
 | Voter clears cookies (guest poll) | Can vote again: a documented limit of guest mode, which *require sign-in* fixes | README ([limitations](#known-limitations)) |
 | Owner adds an option after votes | Allowed; returning voters see "New"; ranking/availability treat it as unanswered | `integration/edit-poll`, `ranking.test`, `availability.test`, `e2e/manage` |
 | Owner removes an option with votes | Blocked with a message; a vote landing mid-edit rolls the edit back | `integration/edit-poll` |
+| Owner edits a closed poll | Refused: no Edit button, the edit page says to reopen, and the server rejects the save (also if the poll closes mid-edit) | `integration/edit-poll`, `e2e/journey` |
+| Owner reopens after the deadline passed | Reopen asks for a new deadline, or none | `integration/poll-lifecycle` |
 | Owner votes on own poll | Counts like anyone | `integration/votes` |
 | Owner deletes account | Their polls (and all votes on them) are deleted; their votes elsewhere stay, unlinked | `integration/schema`, `integration/account-and-export`, `e2e/manage` |
 | Very long option labels | Wrap in cards and results; never clipped | visual checks at 360 px |

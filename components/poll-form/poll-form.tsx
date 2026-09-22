@@ -128,7 +128,8 @@ export function PollForm(props: PollFormProps) {
     settings: settingsToSubmission(draft.settings),
   };
 
-  // Mirrors the server: an unchanged saved deadline may already be in the past.
+  // An unchanged saved deadline that has since passed means the poll closed while
+  // the form was open: let the server say so instead of flagging the field.
   const deadlineUnchanged =
     editing?.closesAt != null && submission.settings.closesAt === editing.closesAt.toISOString();
   const validate = () =>
@@ -181,7 +182,7 @@ export function PollForm(props: PollFormProps) {
       }
       const result = await updatePollAction(editing.id, submission);
       if (!result.ok) return handleFailure(result);
-      toast.success(result.data.reopened ? "Changes saved. The poll is open again." : "Changes saved");
+      toast.success("Changes saved");
       router.push(`/polls/${editing.id}/manage`);
     });
   };

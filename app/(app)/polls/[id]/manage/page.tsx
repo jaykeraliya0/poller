@@ -14,7 +14,7 @@ import { ButtonLink } from "@/components/shared/button-link";
 import { requirePageOwner } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { loadPollResults } from "@/lib/poll/results";
-import { canReopen, isPollOpen } from "@/lib/poll/status";
+import { deadlinePassed, isPollOpen } from "@/lib/poll/status";
 import { pollShareUrl } from "@/lib/urls";
 import { getPollType } from "@/poll-types/registry";
 
@@ -48,11 +48,18 @@ export default async function ManagePollPage({ params, searchParams }: PageProps
         actions={
           <>
             <ShareSheet url={shareUrl} title={poll.title} defaultOpen={created === "1"} />
-            {open ? <ClosePollDialog pollId={poll.id} /> : canReopen(poll, now) && <ReopenPollButton pollId={poll.id} />}
-            <ButtonLink href={`/polls/${poll.id}/edit`} variant="outline" size="lg">
-              <PencilIcon data-icon="inline-start" aria-hidden />
-              Edit
-            </ButtonLink>
+            {open ? (
+              <>
+                <ClosePollDialog pollId={poll.id} />
+                <ButtonLink href={`/polls/${poll.id}/edit`} variant="outline" size="lg">
+                  <PencilIcon data-icon="inline-start" aria-hidden />
+                  Edit
+                </ButtonLink>
+              </>
+            ) : (
+              // Closed polls are read-only; reopening is the way back to editing.
+              <ReopenPollButton pollId={poll.id} needsDeadline={deadlinePassed(poll, now)} />
+            )}
             <ButtonLink href={`/p/${poll.slug}/results`} variant="outline" size="lg">
               <ExternalLinkIcon data-icon="inline-start" aria-hidden />
               Voter view
@@ -70,9 +77,11 @@ export default async function ManagePollPage({ params, searchParams }: PageProps
         showNames={!poll.isAnonymous}
         now={now}
         emptyAction={
-          <div className="w-full text-left">
-            <SharePanel url={shareUrl} title={poll.title} />
-          </div>
+          open && (
+            <div className="w-full text-left">
+              <SharePanel url={shareUrl} title={poll.title} />
+            </div>
+          )
         }
         rail={
           open && (

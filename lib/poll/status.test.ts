@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canReopen, getClosedAt, getPollStatus, isPollOpen } from "./status";
+import { deadlinePassed, getClosedAt, getPollStatus, isPollOpen } from "./status";
 
 const now = new Date("2026-09-22T12:00:00Z");
 const hours = (h: number) => new Date(now.getTime() + h * 60 * 60 * 1000);
@@ -28,10 +28,10 @@ describe("poll status", () => {
     expect(getClosedAt(poll, now)).toEqual(hours(-1));
   });
 
-  it("allows reopening only a manually closed poll whose deadline is ahead", () => {
-    expect(canReopen({ closesAt: hours(5), closedAt: hours(-1) }, now)).toBe(true);
-    expect(canReopen({ closesAt: null, closedAt: hours(-1) }, now)).toBe(true);
-    expect(canReopen({ closesAt: hours(-2), closedAt: hours(-3) }, now)).toBe(false);
-    expect(canReopen({ closesAt: hours(-2), closedAt: null }, now)).toBe(false);
+  it("knows when the deadline itself has passed, whoever closed the poll", () => {
+    expect(deadlinePassed({ closesAt: hours(5), closedAt: hours(-1) }, now)).toBe(false);
+    expect(deadlinePassed({ closesAt: null, closedAt: hours(-1) }, now)).toBe(false);
+    expect(deadlinePassed({ closesAt: hours(-2), closedAt: hours(-3) }, now)).toBe(true);
+    expect(deadlinePassed({ closesAt: now, closedAt: null }, now)).toBe(true);
   });
 });

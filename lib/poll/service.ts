@@ -1,14 +1,17 @@
 import "server-only";
+import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
-import { AppError, ErrorCode, type FieldErrors } from "@/lib/errors";
+import { AppError, ErrorCode, validationError, type FieldErrors } from "@/lib/errors";
 import { stableStringify } from "@/lib/json";
+import { pollSettingsSchema } from "@/lib/validation/poll";
 import { POLLS_PER_PAGE, type PollFilter, type PollListParams } from "./list-params";
-import { canReopen, isPollOpen } from "./status";
+import { deadlinePassed, isPollOpen } from "./status";
 import { createSlug } from "./slug";
 import { parsePollSubmission, type PollSubmission } from "./submission";
 
 const SLUG_ATTEMPTS = 3;
+const CLOSED_EDIT_MESSAGE = "This poll is closed. Reopen it to make changes.";
 
 export async function createPoll(creatorId: string, input: unknown) {
   const parsed = parsePollSubmission(input);
@@ -112,21 +115,34 @@ export async function closePoll(pollId: string, now: Date = new Date()) {
   return poll;
 }
 
-/** Reopens a manually closed poll whose deadline (if any) is still ahead. */
-export async function reopenPoll(pollId: string, now: Date = new Date()) {
+const reopenSchema = z.object({ closesAt: pollSettingsSchema.shape.closesAt.optional() });
+
+/**
+ * Reopens a closed poll. `closesAt` sets a new deadline (null removes it);
+ * leaving it out keeps the current deadline, which must still be ahead.
+ */
+export async function reopenPoll(pollId: string, input: unknown = {}, now: Date = new Date()) {
+  const parsed = reopenSchema.safeParse(input);
+  if (!parsed.success) throw validationError(parsed.error);
+  const { closesAt } = parsed.data;
+
   const poll = await db.poll.findUniqueOrThrow({ where: { id: pollId } });
-  if (!canReopen(poll, now)) {
-    throw new AppError(
-      ErrorCode.CONFLICT,
-      poll.closedAt ? "The deadline has passed. Set a new deadline to reopen this poll." : "This poll is already open.",
-    );
+  if (isPollOpen(poll, now)) throw new AppError(ErrorCode.CONFLICT, "This poll is already open.");
+  if (closesAt === undefined && deadlinePassed(poll, now)) {
+    throw new AppError(ErrorCode.CONFLICT, "The deadline has passed. Set a new deadline to reopen this poll.");
   }
-  await db.poll.update({ where: { id: pollId }, data: { closedAt: null } });
+  // Conditional update, like closePoll, so a concurrent close or reopen isn't silently overwritten.
+  const { count } = await db.poll.updateMany({
+    where: { id: pollId, closedAt: poll.closedAt, closesAt: poll.closesAt },
+    data: { closedAt: null, ...(closesAt !== undefined && { closesAt }) },
+  });
+  if (count === 0) throw new AppError(ErrorCode.CONFLICT, "This poll just changed. Reload and try again.");
   return poll;
 }
 
 /**
- * Applies an edit from the owner. Once people have voted, the type, the type's
+ * Applies an edit from the owner. Closed polls are read-only: the results are
+ * final, so the owner has to reopen the poll first. Once people have voted, the type, the type's
  * config and anonymity are locked, voted options can't be removed, and
  * existing time slots keep their times: all of these would change what
  * earlier votes mean. Adding, renaming and reordering options stays allowed.
@@ -139,22 +155,13 @@ export async function updatePoll(pollId: string, input: unknown, now: Date = new
       _count: { select: { responses: true } },
     },
   });
+  if (!isPollOpen(existing, now)) throw new AppError(ErrorCode.POLL_CLOSED, CLOSED_EDIT_MESSAGE);
   const hasVotes = existing._count.responses > 0;
   const raw = (typeof input === "object" && input !== null ? input : {}) as Partial<PollSubmission>;
 
-  // An unchanged deadline may already be in the past; only a new one must be in the future.
-  const submittedDeadline = raw.settings?.closesAt ? new Date(raw.settings.closesAt).getTime() : null;
-  const keepDeadline = existing.closesAt !== null && submittedDeadline === existing.closesAt.getTime();
-
-  const parsed = parsePollSubmission({
-    ...raw,
-    type: existing.type,
-    template: existing.template,
-    settings: raw.settings && { ...raw.settings, closesAt: keepDeadline ? null : raw.settings.closesAt },
-  });
+  const parsed = parsePollSubmission({ ...raw, type: existing.type, template: existing.template });
   if (!parsed.success) throw new AppError(ErrorCode.VALIDATION, undefined, { fieldErrors: parsed.fieldErrors });
   const { title, description, config, options, settings } = parsed.data;
-  const closesAt = keepDeadline ? existing.closesAt : settings.closesAt;
 
   const fieldErrors: FieldErrors = {};
   if (hasVotes && stableStringify(config) !== stableStringify(existing.config)) {
@@ -180,16 +187,17 @@ export async function updatePoll(pollId: string, input: unknown, now: Date = new
 
   const isSlot = existing.type === "AVAILABILITY";
   await db.$transaction(async (tx) => {
-    await tx.poll.update({
-      where: { id: pollId },
+    // Only while still open: the poll may have closed since it was loaded.
+    const { count } = await tx.poll.updateMany({
+      where: { id: pollId, ...statusWhere("open", now) },
       data: {
         title,
         description: description ?? null,
         ...(!hasVotes && { config }),
         ...settings,
-        closesAt,
       },
     });
+    if (count === 0) throw new AppError(ErrorCode.POLL_CLOSED, CLOSED_EDIT_MESSAGE);
 
     if (removed.length > 0) {
       // Guarded delete: if someone voted on an option in the meantime, abort instead of dropping their vote.
@@ -216,9 +224,7 @@ export async function updatePoll(pollId: string, input: unknown, now: Date = new
     }
   });
 
-  // A new future deadline reopens a poll that had closed because its old deadline passed.
-  const reopened = !isPollOpen(existing, now) && isPollOpen({ ...existing, closesAt }, now);
-  return { id: existing.id, slug: existing.slug, reopened };
+  return { id: existing.id, slug: existing.slug };
 }
 
 export async function deletePoll(pollId: string) {

@@ -1,19 +1,42 @@
 import type { Metadata } from "next";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, LockIcon } from "lucide-react";
 import { AppPage } from "@/components/layout/app-page";
 import { PageHeader } from "@/components/layout/page-header";
 import { BackLink } from "@/components/shared/back-link";
+import { ButtonLink } from "@/components/shared/button-link";
 import { PollFormLoader } from "@/components/poll-form/poll-form-loader";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { requirePageOwner } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { plural } from "@/lib/insights/outcome";
+import { isPollOpen } from "@/lib/poll/status";
 
 export const metadata: Metadata = { title: "Edit poll", robots: { index: false } };
 
 export default async function EditPollPage({ params }: PageProps<"/polls/[id]/edit">) {
   const { id } = await params;
   const { poll } = await requirePageOwner(id, `/polls/${id}/edit`);
+  const backLink = <BackLink href={`/polls/${poll.id}/manage`}>Back to results</BackLink>;
+
+  // Closed polls are read-only (the server refuses the edit too); reopening comes first.
+  if (!isPollOpen(poll)) {
+    return (
+      <AppPage>
+        <PageHeader above={backLink} title="Edit poll" description={poll.title} />
+        <Alert className="max-w-2xl">
+          <LockIcon aria-hidden />
+          <AlertTitle>This poll is closed</AlertTitle>
+          <AlertDescription className="flex flex-col items-start gap-3">
+            Its results are final, so it can&apos;t be edited. Reopen the poll to make changes.
+            <ButtonLink href={`/polls/${poll.id}/manage`} size="lg">
+              Go to the poll
+            </ButtonLink>
+          </AlertDescription>
+        </Alert>
+      </AppPage>
+    );
+  }
+
   const [options, responseCount] = await Promise.all([
     db.pollOption.findMany({
       where: { pollId: poll.id },
@@ -25,7 +48,7 @@ export default async function EditPollPage({ params }: PageProps<"/polls/[id]/ed
 
   return (
     <AppPage>
-      <PageHeader above={<BackLink href={`/polls/${poll.id}/manage`}>Back to results</BackLink>} title="Edit poll" description={poll.title} />
+      <PageHeader above={backLink} title="Edit poll" description={poll.title} />
       {responseCount > 0 && (
         <Alert>
           <InfoIcon aria-hidden />

@@ -51,7 +51,8 @@ export default async function ResultsPage({ params }: PageProps<"/p/[slug]/resul
   const open = isPollOpen(poll, now);
   const access = canViewResults(poll, viewer, now);
 
-  const backLink = <BackLink href={`/p/${slug}`}>{!open ? "Poll" : existing ? "Change your vote" : "Vote"}</BackLink>;
+  const backLabel = !open ? "Poll" : !existing ? "Vote" : poll.allowVoteChange ? "Change your vote" : "Your vote";
+  const backLink = <BackLink href={`/p/${slug}`}>{backLabel}</BackLink>;
 
   if (!access.allowed) {
     const message = hiddenMessage(access.reason, poll.closesAt, now);

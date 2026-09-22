@@ -41,17 +41,33 @@ describe("closing and reopening a poll", () => {
     expect((await db.poll.findUniqueOrThrow({ where: { id: poll.id } })).closedAt).toBeNull();
   });
 
-  it("reopens a manually closed poll, but not once its deadline has passed", async () => {
+  it("reopens a manually closed poll and keeps its future deadline", async () => {
+    const deadline = new Date(Date.now() + 5 * HOUR);
+    await db.poll.update({ where: { id: poll.id }, data: { closesAt: deadline } });
     await closePollAction(poll.id);
     expect(await reopenPollAction(poll.id)).toMatchObject({ ok: true });
-    expect((await db.poll.findUniqueOrThrow({ where: { id: poll.id } })).closedAt).toBeNull();
-    expect(await reopenPollAction(poll.id)).toMatchObject({ code: "CONFLICT" });
+    expect(await db.poll.findUniqueOrThrow({ where: { id: poll.id } })).toMatchObject({ closedAt: null, closesAt: deadline });
+    expect(await reopenPollAction(poll.id)).toMatchObject({ code: "CONFLICT", message: "This poll is already open." });
+  });
 
+  it("needs a new deadline, or none, to reopen once the deadline has passed", async () => {
+    await db.poll.update({ where: { id: poll.id }, data: { closesAt: new Date(Date.now() - HOUR) } });
+    expect(await reopenPollAction(poll.id)).toMatchObject({ code: "CONFLICT", message: expect.stringMatching(/deadline/) });
+    expect(
+      await reopenPollAction(poll.id, { closesAt: new Date(Date.now() - 2 * HOUR).toISOString() }),
+    ).toMatchObject({ code: "VALIDATION", fieldErrors: { closesAt: ["Deadline must be in the future"] } });
+
+    const future = new Date(Math.floor((Date.now() + 24 * HOUR) / 1000) * 1000);
+    expect(await reopenPollAction(poll.id, { closesAt: future.toISOString() })).toMatchObject({ ok: true });
+    expect(await db.poll.findUniqueOrThrow({ where: { id: poll.id } })).toMatchObject({ closedAt: null, closesAt: future });
+
+    // Closed by hand after the deadline passed: reopening with no deadline clears it.
     await db.poll.update({
       where: { id: poll.id },
       data: { closedAt: new Date(Date.now() - 2 * HOUR), closesAt: new Date(Date.now() - HOUR) },
     });
-    expect(await reopenPollAction(poll.id)).toMatchObject({ code: "CONFLICT", message: expect.stringMatching(/deadline/) });
+    expect(await reopenPollAction(poll.id, { closesAt: null })).toMatchObject({ ok: true });
+    expect(await db.poll.findUniqueOrThrow({ where: { id: poll.id } })).toMatchObject({ closedAt: null, closesAt: null });
   });
 });
 

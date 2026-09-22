@@ -41,10 +41,11 @@ export async function closePollAction(pollId: string): Promise<ActionResult> {
   }
 }
 
-export async function reopenPollAction(pollId: string): Promise<ActionResult> {
+/** `input.closesAt` sets a new deadline, which a poll whose deadline has passed needs. */
+export async function reopenPollAction(pollId: string, input: unknown = {}): Promise<ActionResult> {
   try {
     const { poll } = await requireOwner(pollId);
-    await reopenPoll(poll.id);
+    await reopenPoll(poll.id, input);
     revalidatePollPages(poll.id, poll.slug);
     return ok();
   } catch (error) {
@@ -52,12 +53,12 @@ export async function reopenPollAction(pollId: string): Promise<ActionResult> {
   }
 }
 
-export async function updatePollAction(pollId: string, input: unknown): Promise<ActionResult<{ reopened: boolean }>> {
+export async function updatePollAction(pollId: string, input: unknown): Promise<ActionResult> {
   try {
     const { poll } = await requireOwner(pollId);
-    const result = await updatePoll(poll.id, input);
+    await updatePoll(poll.id, input);
     revalidatePollPages(poll.id, poll.slug);
-    return ok({ reopened: result.reopened });
+    return ok();
   } catch (error) {
     return toActionFailure(error);
   }

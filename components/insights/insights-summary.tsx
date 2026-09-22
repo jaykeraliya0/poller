@@ -13,22 +13,26 @@ const CONSENSUS_LABEL: Record<Consensus, string> = {
   SPLIT: "Opinions split",
 };
 
-function fallbackHeadline({ common, byType }: PollInsights): string {
+function fallbackHeadline({ common, byType }: PollInsights, open: boolean): string {
   switch (byType.outcome.kind) {
     case "NO_VOTES":
-      return "No votes yet";
+      return open ? "No votes yet" : "No votes";
     case "TOO_FEW":
-      return `${plural(common.totalResponses, "vote")} so far. We'll call a leader after ${MIN_RESPONSES_FOR_OUTCOME}.`;
+      return open
+        ? `${plural(common.totalResponses, "vote")} so far. We'll call a leader after ${MIN_RESPONSES_FOR_OUTCOME}.`
+        : `Only ${plural(common.totalResponses, "vote")}, too few to call a winner.`;
     default:
-      return "Results so far";
+      return open ? "Results so far" : "Final results";
   }
 }
 
 /** "+2 votes" / "+1 person": how far ahead the leader is, in the type's own units. */
-function leadStat({ byType }: PollInsights): { value: string; detail: string } {
+function leadStat({ common, byType }: PollInsights): { value: string; detail: string } {
   const outcome = byType.outcome;
   if (outcome.kind === "TIE") return { value: "Tied", detail: `${outcome.tied.length} options level` };
-  if (outcome.kind !== "LEADER" || !outcome.runnerUp) return { value: "—", detail: "Not enough votes yet" };
+  if (outcome.kind !== "LEADER" || !outcome.runnerUp) {
+    return { value: "—", detail: common.status === "CLOSED" ? "Not enough votes" : "Not enough votes yet" };
+  }
 
   const runnerUpLabel = outcome.runnerUp.label;
   switch (byType.kind) {
@@ -68,7 +72,7 @@ export function InsightsHeadline({ insights }: { insights: PollInsights }) {
     (byType.kind === "CHOICE" || byType.kind === "RANKING") && common.hasEnoughData ? byType.consensus : null;
   const polarized = byType.kind === "RATING" && common.hasEnoughData ? byType.polarizedLabels : [];
   const name = verdictName(insights);
-  const sentence = byType.headline ?? fallbackHeadline(insights);
+  const sentence = byType.headline ?? fallbackHeadline(insights, open);
 
   return (
     <section aria-labelledby="insights-heading" className="flex flex-col gap-3">
