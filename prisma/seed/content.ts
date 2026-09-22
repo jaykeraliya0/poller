@@ -124,3 +124,21 @@ export const COMMENTS = {
     "Let's pick something everyone can join.",
   ],
 } as const;
+
+/** Names people give their saved lists of people. */
+export const GROUP_NAMES = [
+  "Engineering",
+  "Design team",
+  "Leadership team",
+  "Product squad",
+  "Platform guild",
+  "Book club",
+  "Social committee",
+  "Offsite planners",
+  "Hiring panel",
+  "Support rotation",
+  "Marketing",
+  "Data team",
+  "Five-a-side",
+  "Board games night",
+];

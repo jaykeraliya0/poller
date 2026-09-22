@@ -18,6 +18,8 @@ export type Viewer = {
   hasVoted: boolean;
   /** Invited directly or through a linked group. Only matters on private polls. */
   isInvited: boolean;
+  /** Unconfirmed emails never match an invite, so they get told to confirm rather than "not invited". */
+  emailVerified: boolean;
 };
 
 export type Decision<Reason extends string> = { allowed: true } | { allowed: false; reason: Reason };
@@ -25,16 +27,18 @@ export type Decision<Reason extends string> = { allowed: true } | { allowed: fal
 const allow = { allowed: true } as const;
 const deny = <R extends string>(reason: R) => ({ allowed: false, reason }) as const;
 
-export type AccessDenial = "LOGIN_REQUIRED" | "NOT_INVITED";
+export type AccessDenial = "LOGIN_REQUIRED" | "NOT_INVITED" | "EMAIL_UNVERIFIED";
 
 /**
  * Whether the viewer may see the poll at all. Private polls are for the owner
- * and invitees only, so they always need an account to tell who's asking.
+ * and invitees only, so they always need an account (with a confirmed email)
+ * to tell who's asking.
  */
 export function canAccessPoll(poll: PollRules, viewer: Viewer): Decision<AccessDenial> {
   if (poll.visibility === "PUBLIC" || viewer.isOwner) return allow;
   if (!viewer.userId) return deny(ErrorCode.LOGIN_REQUIRED);
-  return viewer.isInvited ? allow : deny(ErrorCode.NOT_INVITED);
+  if (viewer.isInvited) return allow;
+  return deny(viewer.emailVerified ? ErrorCode.NOT_INVITED : ErrorCode.EMAIL_UNVERIFIED);
 }
 
 export function canViewVotePage(poll: PollRules, viewer: Viewer): Decision<AccessDenial> {

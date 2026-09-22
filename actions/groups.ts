@@ -5,6 +5,8 @@ import { redirect, unstable_rethrow } from "next/navigation";
 import { requireGroupOwner, requireUser } from "@/lib/auth/guards";
 import { ok, toActionFailure, type ActionFailure, type ActionResult } from "@/lib/errors";
 import { formValues, type FormState } from "@/lib/forms";
+import { deferEmail } from "@/lib/email/defer";
+import { notifyNewGroupMembers } from "@/lib/email/poll-emails";
 import { addMembers, createGroup, deleteGroup, removeMember, renameGroup } from "@/lib/groups/service";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
@@ -51,9 +53,10 @@ export async function addMembersAction(groupId: string, emails: string): Promise
   try {
     const { user, group } = await requireGroupOwner(groupId);
     await enforceRateLimit("invite", user.id);
-    const result = await addMembers(group.id, emails);
+    const { added, emails: members } = await addMembers(group.id, emails);
+    deferEmail("group member invite", () => notifyNewGroupMembers(group.id, members));
     revalidateGroup(group.id);
-    return ok(result);
+    return ok({ added });
   } catch (error) {
     return toActionFailure(error);
   }

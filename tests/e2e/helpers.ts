@@ -1,4 +1,5 @@
 import { test as base, devices, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { linkPath, waitForEmail } from "./outbox";
 
 /** Extra browsers opened by the current test (other voters); closed when it ends. */
 const voterContexts: BrowserContext[] = [];
@@ -60,10 +61,24 @@ export async function fillRegisterForm(page: Page, { name, email, password }: Ac
   await page.getByRole("button", { name: "Create account" }).click();
 }
 
-/** Signs up and waits until the session exists (landing on the dashboard). */
-export async function register(page: Page, account: Account) {
+/**
+ * Signs up and waits until the session exists (landing on the dashboard).
+ * Confirms the email too, unless told not to: creating polls needs it.
+ */
+export async function register(page: Page, account: Account, { confirm = true }: { confirm?: boolean } = {}) {
   await fillRegisterForm(page, account);
   await page.waitForURL(/\/dashboard$/);
+  if (confirm) await confirmEmail(page, account.email);
+}
+
+/** Follows the link in the confirmation email sent on sign-up. */
+export async function confirmEmail(page: Page, email: string) {
+  const sent = await waitForEmail(email, /^Confirm your email/);
+  await page.goto(linkPath(sent));
+  await page.waitForURL(/\/dashboard(\?|$)/);
+  // Reload once the "Email confirmed" toast has shown, so it can't cover controls on small screens.
+  await expect(page.getByText("Email confirmed")).toBeVisible();
+  await page.goto("/dashboard");
 }
 
 const randomIp = () => `10.${[0, 0, 0].map(() => Math.floor(Math.random() * 254) + 1).join(".")}`;

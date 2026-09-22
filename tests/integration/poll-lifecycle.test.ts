@@ -80,7 +80,7 @@ describe("loadPollResults", () => {
     const vote = (index: number, name: string, comment?: string) =>
       castVote(
         { slug: poll.slug, answers: { optionIds: [poll.options[index].id] }, voterName: name, comment },
-        { userId: null, userName: null, userEmail: null, voterToken: crypto.randomUUID() },
+        { userId: null, userName: null, userEmail: null, userEmailVerified: false, voterToken: crypto.randomUUID() },
       );
     await vote(1, "Ana", "Sushi please");
     await vote(1, "Ben");
@@ -112,7 +112,7 @@ describe("post-vote results visibility", () => {
     const poll = await createChoicePoll((await createUser()).id, ["A", "B"], { resultsVisibility });
     const result = await castVote(
       { slug: poll.slug, answers: { optionIds: [poll.options[0].id] }, voterName: "X" },
-      { userId: null, userName: null, userEmail: null, voterToken: crypto.randomUUID() },
+      { userId: null, userName: null, userEmail: null, userEmailVerified: false, voterToken: crypto.randomUUID() },
     );
     expect(result.resultsVisible).toBe(expected);
   });

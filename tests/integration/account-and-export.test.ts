@@ -15,7 +15,7 @@ const form = (confirmation: string) => {
   data.set("confirmation", confirmation);
   return data;
 };
-const guest = () => ({ userId: null, userName: null, userEmail: null, voterToken: crypto.randomUUID() });
+const guest = () => ({ userId: null, userName: null, userEmail: null, userEmailVerified: false, voterToken: crypto.randomUUID() });
 
 describe("deleteAccountAction", () => {
   beforeEach(async () => {
@@ -40,6 +40,7 @@ describe("deleteAccountAction", () => {
       userId: leaving.id,
       userName: "Leaving",
       userEmail: leaving.email,
+      userEmailVerified: true,
       voterToken: "t",
     });
     signInAs(leaving);

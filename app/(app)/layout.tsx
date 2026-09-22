@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PlusIcon } from "lucide-react";
+import { VerifyEmailBanner } from "@/components/account/verify-email-banner";
 import { AppNav } from "@/components/layout/app-nav";
 import { Logo } from "@/components/layout/logo";
 import { UserMenu } from "@/components/layout/user-menu";
@@ -46,6 +47,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             </div>
           </div>
         </header>
+        {user && !user.emailVerified && <VerifyEmailBanner email={user.email} />}
         <main id="main" tabIndex={-1} className="flex flex-1 flex-col pb-[env(safe-area-inset-bottom)] outline-none">
           {children}
         </main>

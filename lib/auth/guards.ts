@@ -6,25 +6,38 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { AppError, ErrorCode } from "@/lib/errors";
 
-export type CurrentUser = { id: string; name: string; email: string };
+export type CurrentUser = { id: string; name: string; email: string; emailVerified: boolean };
 
 /**
  * The signed-in user, or null. Checks the database as well as the JWT, so a
- * session for a deleted account stops working immediately. Cached per request.
+ * session for a deleted account, or one from before a password reset, stops
+ * working immediately. Cached per request.
  */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return null;
-  return db.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true, email: true, emailVerifiedAt: true, passwordChangedAt: true },
   });
+  if (!user) return null;
+  if (user.passwordChangedAt && (session.authAt ?? 0) < user.passwordChangedAt.getTime()) return null;
+  return { id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerifiedAt !== null };
 });
 
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) throw new AppError(ErrorCode.UNAUTHENTICATED);
+  return user;
+}
+
+export const UNVERIFIED_CREATE_MESSAGE = "Confirm your email address to create polls.";
+
+/** Creating polls needs a confirmed email, so throwaway addresses can't be used to churn out polls. */
+export async function requireVerifiedUser(): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (!user.emailVerified) throw new AppError(ErrorCode.EMAIL_UNVERIFIED, UNVERIFIED_CREATE_MESSAGE);
   return user;
 }
 

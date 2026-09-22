@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
+import { CircleCheckIcon } from "lucide-react";
 import { DeleteAccountForm } from "@/components/account/delete-account-form";
+import { EmailNotificationsSwitch } from "@/components/account/email-notifications-switch";
+import { ResendVerificationButton } from "@/components/account/resend-verification-button";
 import { AppPage } from "@/components/layout/app-page";
 import { PageHeader } from "@/components/layout/page-header";
+import { Badge } from "@/components/ui/badge";
 import { requirePageUser } from "@/lib/auth/guards";
+import { db } from "@/lib/db";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -22,6 +27,10 @@ function SettingsSection({ id, title, description, children, danger }: { id: str
 
 export default async function SettingsPage() {
   const user = await requirePageUser("/settings");
+  const { emailNotifications } = await db.user.findUniqueOrThrow({
+    where: { id: user.id },
+    select: { emailNotifications: true },
+  });
   return (
     <AppPage className="max-w-[900px]">
       <PageHeader title="Settings" />
@@ -35,9 +44,38 @@ export default async function SettingsPage() {
             </div>
             <div className="grid gap-1 px-4 py-3 sm:grid-cols-[6rem_1fr]">
               <dt className="text-muted-foreground">Email</dt>
-              <dd className="font-medium break-all">{user.email}</dd>
+              <dd className="flex flex-wrap items-center gap-2">
+                <span className="font-medium break-all">{user.email}</span>
+                {user.emailVerified ? (
+                  <Badge variant="outline">
+                    <CircleCheckIcon aria-hidden />
+                    Confirmed
+                  </Badge>
+                ) : (
+                  <Badge variant="outline">Not confirmed</Badge>
+                )}
+              </dd>
             </div>
           </dl>
+        </SettingsSection>
+
+        <SettingsSection
+          id="email-heading"
+          title="Email"
+          description="Account emails, like password resets, always send. Poll emails are up to you."
+        >
+          <div className="flex flex-col gap-3">
+            {!user.emailVerified && (
+              <div className="panel flex flex-wrap items-center justify-between gap-3 p-4">
+                <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+                  Confirm your address to create polls, open private polls you&apos;re invited to and get poll emails. Check your inbox
+                  for the link.
+                </p>
+                <ResendVerificationButton email={user.email} />
+              </div>
+            )}
+            <EmailNotificationsSwitch enabled={emailNotifications} />
+          </div>
         </SettingsSection>
 
         <SettingsSection

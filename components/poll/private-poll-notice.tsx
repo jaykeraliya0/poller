@@ -1,4 +1,5 @@
 import { LockIcon, LogInIcon } from "lucide-react";
+import { ResendVerificationButton } from "@/components/account/resend-verification-button";
 import { PageContainer } from "@/components/layout/page-container";
 import { ButtonLink } from "@/components/shared/button-link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -26,6 +27,18 @@ export function PrivatePollNotice({ reason, path, signedInAs }: PrivatePollNotic
                 <LogInIcon data-icon="inline-start" aria-hidden />
                 Sign in
               </ButtonLink>
+            </AlertDescription>
+          </>
+        ) : reason === "EMAIL_UNVERIFIED" ? (
+          <>
+            <AlertTitle>Confirm your email to open this poll</AlertTitle>
+            <AlertDescription className="flex flex-col items-start gap-3">
+              This poll is private. Invites only count once you&apos;ve confirmed you own{" "}
+              <strong className="font-medium text-foreground">{signedInAs}</strong>: follow the link we emailed you, then
+              come back here.
+              <ResendVerificationButton email={signedInAs ?? ""} size="lg">
+                Resend confirmation email
+              </ResendVerificationButton>
             </AlertDescription>
           </>
         ) : (

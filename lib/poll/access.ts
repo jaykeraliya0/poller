@@ -15,18 +15,24 @@ export async function isInvited(pollId: string, email: string): Promise<boolean>
   return count > 0;
 }
 
-/** The permission viewer for this identity. Only private polls pay for the invite lookup. */
+/**
+ * The permission viewer for this identity. Only private polls pay for the
+ * invite lookup, and only confirmed emails can match an invite: otherwise
+ * whoever registered an invited address first would get the invite.
+ */
 export async function buildViewer(
   poll: Pick<Poll, "id" | "creatorId" | "visibility">,
-  identity: Pick<VoterIdentity, "userId" | "userEmail">,
+  identity: Pick<VoterIdentity, "userId" | "userEmail" | "userEmailVerified">,
   hasVoted: boolean,
 ): Promise<Viewer> {
   const isOwner = identity.userId !== null && poll.creatorId === identity.userId;
-  const needsLookup = poll.visibility === "PRIVATE" && !isOwner && identity.userEmail !== null;
+  const needsLookup =
+    poll.visibility === "PRIVATE" && !isOwner && identity.userEmail !== null && identity.userEmailVerified;
   return {
     userId: identity.userId,
     isOwner,
     hasVoted,
+    emailVerified: identity.userEmailVerified,
     isInvited: needsLookup ? await isInvited(poll.id, identity.userEmail!) : false,
   };
 }

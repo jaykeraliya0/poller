@@ -75,13 +75,14 @@ export async function addMembers(groupId: string, input: unknown) {
         fieldErrors: { emails: [`A group can have up to ${EMAIL_LIST_LIMITS.membersPerGroup} members`] },
       });
     }
-    const { count } = await tx.groupMember.createMany({
+    const created = await tx.groupMember.createManyAndReturn({
       data: fresh.map((email) => ({ groupId, email })),
       skipDuplicates: true,
+      select: { email: true },
     });
     // Touch the group so "recently changed" ordering and caches notice.
     await tx.group.update({ where: { id: groupId }, data: { updatedAt: new Date() } });
-    return { added: count };
+    return { added: created.length, emails: created.map((member) => member.email) };
   });
 }
 

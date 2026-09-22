@@ -11,6 +11,7 @@ export async function readVoterIdentity(): Promise<VoterIdentity> {
     userId: user?.id ?? null,
     userName: user?.name ?? null,
     userEmail: user?.email ?? null,
+    userEmailVerified: user?.emailVerified ?? false,
     voterToken: store.get(VOTER_TOKEN_COOKIE)?.value ?? "",
   };
 }

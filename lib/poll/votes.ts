@@ -13,8 +13,9 @@ import { getPollType } from "@/poll-types/registry";
 export type VoterIdentity = {
   userId: string | null;
   userName: string | null;
-  /** Matched against private-poll invites. */
+  /** Matched against private-poll invites, but only once confirmed. */
   userEmail: string | null;
+  userEmailVerified: boolean;
   voterToken: string;
 };
 

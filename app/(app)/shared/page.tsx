@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { InboxIcon } from "lucide-react";
+import { InboxIcon, MailWarningIcon } from "lucide-react";
+import { ResendVerificationButton } from "@/components/account/resend-verification-button";
 import { AppPage } from "@/components/layout/app-page";
 import { PageHeader } from "@/components/layout/page-header";
 import { PollBrowser, type PollSummary } from "@/components/poll/poll-browser";
@@ -19,6 +20,26 @@ const BASE_PATH = "/shared";
 
 export default async function SharedPollsPage({ searchParams }: PageProps<"/shared">) {
   const user = await requirePageUser(BASE_PATH);
+  // Invites only match confirmed addresses (see buildViewer), so there's nothing to list yet.
+  if (!user.emailVerified) {
+    return (
+      <AppPage>
+        <PageHeader title="Shared with me" />
+        <EmptyState
+          icon={MailWarningIcon}
+          title="Confirm your email to see shared polls"
+          description={
+            <>
+              Polls shared with <strong className="font-medium text-foreground">{user.email}</strong> show up here once
+              you&apos;ve followed the link we emailed you.
+            </>
+          }
+        >
+          <ResendVerificationButton email={user.email} size="lg" />
+        </EmptyState>
+      </AppPage>
+    );
+  }
   const params = parsePollListParams(await searchParams);
   const now = new Date();
   const { polls, total, page, pageCount, counts } = await listPollsSharedWith(user, params, now);

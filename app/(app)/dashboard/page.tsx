@@ -40,6 +40,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   return (
     <AppPage>
       <QueryToast param="deleted" value="1" message="Poll deleted" />
+      <QueryToast param="verified" value="1" message="Email confirmed" />
 
       {counts.all === 0 ? (
         <>

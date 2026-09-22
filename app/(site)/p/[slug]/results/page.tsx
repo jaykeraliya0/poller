@@ -58,7 +58,7 @@ export default async function ResultsPage({ params }: PageProps<"/p/[slug]/resul
   const backLink = <BackLink href={`/p/${slug}`}>{backLabel}</BackLink>;
 
   if (!access.allowed) {
-    if (access.reason === "LOGIN_REQUIRED" || access.reason === "NOT_INVITED") {
+    if (access.reason === "LOGIN_REQUIRED" || access.reason === "NOT_INVITED" || access.reason === "EMAIL_UNVERIFIED") {
       return <PrivatePollNotice reason={access.reason} path={`/p/${slug}/results`} signedInAs={identity.userEmail} />;
     }
     const message = hiddenMessage(access.reason, poll.closesAt, now);

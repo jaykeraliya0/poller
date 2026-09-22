@@ -26,10 +26,10 @@ const rules = (overrides: Partial<PollRules> = {}): PollRules => ({
   ...overrides,
 });
 
-const guest: Viewer = { userId: null, isOwner: false, hasVoted: false, isInvited: false };
-const member: Viewer = { userId: "u1", isOwner: false, hasVoted: false, isInvited: false };
-const invitee: Viewer = { userId: "u2", isOwner: false, hasVoted: false, isInvited: true };
-const owner: Viewer = { userId: "owner", isOwner: true, hasVoted: false, isInvited: false };
+const guest: Viewer = { userId: null, isOwner: false, hasVoted: false, isInvited: false, emailVerified: true };
+const member: Viewer = { userId: "u1", isOwner: false, hasVoted: false, isInvited: false, emailVerified: true };
+const invitee: Viewer = { userId: "u2", isOwner: false, hasVoted: false, isInvited: true, emailVerified: true };
+const owner: Viewer = { userId: "owner", isOwner: true, hasVoted: false, isInvited: false, emailVerified: true };
 const voted = (viewer: Viewer): Viewer => ({ ...viewer, hasVoted: true });
 
 describe("vote page access", () => {

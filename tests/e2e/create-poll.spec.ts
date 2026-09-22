@@ -1,4 +1,4 @@
-import { expect, register, test, uniqueEmail } from "./helpers";
+import { confirmEmail, expect, register, test, uniqueEmail } from "./helpers";
 
 const password = "correct horse battery";
 
@@ -9,11 +9,17 @@ test("creates a poll from a template, shares it and lists it on the dashboard", 
   // Signed out: sign up first, then land back on the chosen template.
   await expect(page).toHaveURL(/\/login\?next=/);
   await page.getByRole("link", { name: "Create an account" }).click();
+  const email = uniqueEmail();
   await page.getByLabel("Name").fill("Priya");
-  await page.getByLabel("Email").fill(uniqueEmail());
+  await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/\/polls\/new\?template=WORKSHOP_TOPIC/);
+
+  // Creating polls waits for a confirmed email.
+  await expect(page.getByText("Confirm your email to create polls")).toBeVisible();
+  await confirmEmail(page, email);
+  await page.goto("/polls/new?template=WORKSHOP_TOPIC");
 
   await expect(page.getByLabel("Title")).toHaveValue("Which workshop should we run?");
   await page.getByLabel("Title").fill("Q4 workshop topic");

@@ -67,7 +67,7 @@ export function AccessPanel({ pollId, access }: AccessPanelProps) {
 
       <EmailListEditor
         label="Invite by email"
-        description="Separate addresses with commas or new lines. People without an account get access once they sign up with that email."
+        description="Separate addresses with commas or new lines. We email each new invitee a link. People without an account get access once they sign up with that email and confirm it."
         entries={access.invites.map((invite) => ({ key: invite.id, email: invite.email, hasAccount: invite.hasAccount }))}
         emptyText="No one invited directly yet."
         noun="invite"

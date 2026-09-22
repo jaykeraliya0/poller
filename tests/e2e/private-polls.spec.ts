@@ -1,4 +1,5 @@
-import { createChoicePoll, expect, newVoterPage, register, test, uniqueEmail } from "./helpers";
+import { confirmEmail, createChoicePoll, expect, newVoterPage, register, test, uniqueEmail } from "./helpers";
+import { linkPath, waitForEmail } from "./outbox";
 
 const password = "correct horse battery";
 
@@ -35,6 +36,10 @@ test("a private poll reaches invitees and groups, and nobody else", async ({ pag
   await expect(guest.getByText(title)).toHaveCount(0);
   await expect(guest).toHaveTitle(/Private poll/);
 
+  // The invite email goes out straight away, before they even have an account.
+  const invite = await waitForEmail(inviteeEmail, /^Olga Organiser invited you to vote/);
+  expect(linkPath(invite)).toBe(pollPath);
+
   // Someone signed in but not invited is turned away.
   const stranger = await newVoterPage(browser);
   await register(stranger, { name: "Stan", email: uniqueEmail("stranger"), password });
@@ -42,9 +47,15 @@ test("a private poll reaches invitees and groups, and nobody else", async ({ pag
   await expect(stranger.getByText("You're not on the invite list")).toBeVisible();
   await expect(stranger.getByText(title)).toHaveCount(0);
 
-  // The direct invitee signs up later, finds the poll under "Shared with me" and votes.
+  // The direct invitee signs up later. Until they confirm their email, the invite doesn't count.
   const invitee = await newVoterPage(browser);
-  await register(invitee, { name: "Ivy", email: inviteeEmail, password });
+  await register(invitee, { name: "Ivy", email: inviteeEmail, password }, { confirm: false });
+  await invitee.goto(pollPath);
+  await expect(invitee.getByText("Confirm your email to open this poll")).toBeVisible();
+  await expect(invitee.getByText(title)).toHaveCount(0);
+
+  // Once confirmed, they find the poll under "Shared with me" and vote.
+  await confirmEmail(invitee, inviteeEmail);
   await invitee.goto("/shared");
   const row = invitee.getByRole("link", { name: new RegExp(title) });
   await expect(row).toContainText("Not voted yet");

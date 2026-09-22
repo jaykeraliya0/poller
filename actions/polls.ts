@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect, unstable_rethrow } from "next/navigation";
-import { requireOwner, requireUser } from "@/lib/auth/guards";
+import { requireOwner, requireVerifiedUser } from "@/lib/auth/guards";
+import { deferEmail } from "@/lib/email/defer";
+import { sendResultsEmail } from "@/lib/email/poll-emails";
 import { ok, toActionFailure, type ActionFailure, type ActionResult } from "@/lib/errors";
 import { closePoll, createPoll, deletePoll, reopenPoll, updatePoll } from "@/lib/poll/service";
 import { enforceRateLimit } from "@/lib/rate-limit";
@@ -11,7 +13,7 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 export async function createPollAction(input: unknown): Promise<ActionFailure> {
   let pollId: string;
   try {
-    const user = await requireUser();
+    const user = await requireVerifiedUser();
     await enforceRateLimit("create", user.id);
     ({ id: pollId } = await createPoll(user.id, input));
   } catch (error) {
@@ -34,6 +36,7 @@ export async function closePollAction(pollId: string): Promise<ActionResult> {
   try {
     const { poll } = await requireOwner(pollId);
     await closePoll(poll.id);
+    deferEmail("results", () => sendResultsEmail(poll.id));
     revalidatePollPages(poll.id, poll.slug);
     return ok();
   } catch (error) {
