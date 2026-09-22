@@ -227,6 +227,52 @@ async function seedClosedPoll(creatorId: string) {
   return poll;
 }
 
+/**
+ * A private poll shared with a group (which the demo voter is in) plus one
+ * direct invite for someone who hasn't signed up yet.
+ */
+async function seedPrivatePoll(creatorId: string, voter: { id: string; name: string }) {
+  const setup = choicePollType.setupSchema.parse({
+    config: { multi: false, maxSelections: null },
+    options: ["Keep the current plan", "Switch to the premium tier", "Drop it for now"].map((label) => ({ label })),
+  });
+  const group = await db.group.create({
+    data: {
+      ownerId: creatorId,
+      name: "Leadership team",
+      members: { create: [VOTER_EMAIL, "alex@example.com", "priya@example.com"].map((email) => ({ email })) },
+    },
+  });
+  const poll = await db.poll.create({
+    data: {
+      creatorId,
+      slug: createSlug(),
+      type: "CHOICE",
+      template: "CUSTOM",
+      title: "Budget call: analytics subscription",
+      description: "Just for the leadership team. Results show once you've voted.",
+      config: setup.config,
+      visibility: "PRIVATE",
+      resultsVisibility: "AFTER_VOTE",
+      closesAt: new Date(Date.now() + 4 * DAY),
+      options: { create: setup.options },
+      invites: { create: { email: "new.hire@example.com" } },
+      groups: { create: { groupId: group.id } },
+    },
+    include: { options: { orderBy: { position: "asc" } } },
+  });
+  await db.pollResponse.create({
+    data: {
+      pollId: poll.id,
+      voterToken: "seed-private-0",
+      voterName: voter.name,
+      userId: voter.id,
+      answers: { create: { optionId: poll.options[0].id, value: 1 } },
+    },
+  });
+  return poll;
+}
+
 /** Hand-written demo polls with known outcomes, owned by the demo organiser. */
 export async function seedShowcase() {
   // Idempotent: removing the demo users cascades to their polls and votes.
@@ -242,6 +288,7 @@ export async function seedShowcase() {
     await seedRankingPoll(demo.id),
     await seedRatingPoll(demo.id),
     await seedClosedPoll(demo.id),
+    await seedPrivatePoll(demo.id, voter),
   ];
 
   return { demo, voter, passwordHash, polls };

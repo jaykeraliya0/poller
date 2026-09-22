@@ -27,12 +27,13 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   // Status and relative times come from server time, so the list renders the same on both sides.
   const summaries: PollSummary[] = polls.map((poll) => ({
     id: poll.id,
+    href: `/polls/${poll.id}/manage`,
     title: poll.title,
-    typeLabel: getPollType(poll.type).label,
+    subtitle: getPollType(poll.type).label,
+    isPrivate: poll.visibility === "PRIVATE",
     status: getPollStatus(poll, now),
     statusLabel: statusLabel(poll, now),
-    responses: poll._count.responses,
-    expected: poll.expectedParticipants,
+    detail: { kind: "turnout", responses: poll._count.responses, expected: poll.expectedParticipants },
     createdLabel: formatRelative(poll.createdAt, now),
   }));
 
@@ -63,7 +64,10 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
                 : "None of your polls are taking votes right now."
             }
           />
-          <PollBrowser polls={summaries} params={{ ...params, page }} counts={counts} total={total} pageCount={pageCount} />
+          <PollBrowser
+            basePath="/dashboard"
+            detailHeading="Responses"
+            polls={summaries} params={{ ...params, page }} counts={counts} total={total} pageCount={pageCount} />
         </>
       )}
     </AppPage>

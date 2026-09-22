@@ -31,12 +31,12 @@ Built with **Next.js 16** (App Router, Server Actions), **shadcn/ui** (Base UI),
 | **Ranking** | Taps options in order of preference (top N or all) | Borda points, average rank, first-choice share, tie detection, rank-breakdown heatmap, head-to-head matrix with Condorcet winner |
 | **Rating** | Scores each option 1–5 or 1–10 | Average, median, histogram, **"opinions split"** when many rate very low *and* very high, diverging sentiment bars, average ± spread plot |
 
-**For the organiser:** templates for the four use cases, a dashboard, a live manage page (refreshes every 15 s), share link / native share sheet, deadline and close/reopen, anonymous or named voting, "require sign-in", results visibility (public / after voting / after close / owner only), expected-participants response rate, editing while the poll is open, CSV export, and deleting polls or the account.
+**For the organiser:** templates for the four use cases, a dashboard, a live manage page (refreshes every 15 s), share link / native share sheet, deadline and close/reopen, anonymous or named voting, "require sign-in", results visibility (public / after voting / after close / owner only), **private polls** open only to people invited by email or through a **group** (a creator's own saved list of people, live-linked so membership changes apply straight away), expected-participants response rate, editing while the poll is open, CSV export, and deleting polls or the account.
 
-**For voters:** no account needed (unless the organiser requires one), change or withdraw a vote while the poll is open, and land on the results straight after voting when allowed.
+**For voters:** no account needed (unless the organiser requires one or the poll is private), a *Shared with me* list of private polls they've been invited to, change or withdraw a vote while the poll is open, and land on the results straight after voting when allowed.
 
 **Demo data:**
-- `pnpm db:seed`: small and fast. Creates `demo@poller.dev` (organiser) and `voter@poller.dev` (password `password123` for both), plus one showcase poll per type and a closed poll.
+- `pnpm db:seed`: small and fast. Creates `demo@poller.dev` (organiser) and `voter@poller.dev` (password `password123` for both), plus one showcase poll per type, a closed poll, and a private poll shared with a "Leadership team" group that the voter account belongs to.
 - `pnpm db:seed:large`: **wipes the database** and loads the showcase plus a realistic dataset of ~250 users, ~185 polls and ~7,000 votes (~25,000 answers). Votes come from per-poll hidden preferences, so there are clear winners, close races, ties, polarised ratings, empty and near-empty polls, and options added mid-vote. It's deterministic (seeded) and every generated user's password is `password123`.
 
 ## Quick start
@@ -95,8 +95,9 @@ flowchart LR
 ### Core flows
 
 - **Create:** `requireUser` → rate limit (10/h/user) → validate details, settings and type setup in one pass → insert poll + options in one transaction → manage page with the share dialog.
-- **Vote:** rate limits (30/min/IP, 5/min/poll/IP) → load poll → open? sign-in rule? answers valid for *this* poll's options? → transaction: find the viewer's response (account first, then browser token) → update or insert → results page.
+- **Vote:** rate limits (30/min/IP, 5/min/poll/IP) → load poll → private and not invited? open? sign-in rule? answers valid for *this* poll's options? → transaction: find the viewer's response (account first, then browser token) → update or insert → results page.
 - **Results:** `canViewResults` (permission matrix below) → load responses → `computeInsights` (common + type-specific) → summary, charts, analysis (standings over time, turnout, type-specific breakdowns), comments, who-voted list.
+- **Invite / groups:** owner check → rate limit (30/h/user) → parse a pasted email list (all-or-nothing, deduped, lowercased) → insert, skipping existing ones. A poll can only link groups owned by its creator.
 - **Close/reopen:** owner check → conditional update (so two concurrent closes can't both succeed). Reopening after the deadline has passed needs a new deadline (or none).
 - **Edit:** owner check → closed polls are refused (`POLL_CLOSED`; reopen first) → validate → vote-aware locks → transaction whose poll update only applies while the poll is still open.
 
@@ -104,13 +105,15 @@ flowchart LR
 
 | Action | Guest | Signed-in voter | Owner |
 |---|---|---|---|
+| Open a **private** poll at all | No (asked to sign in) | Only if invited directly or via a linked group | Yes |
 | View vote page / vote | Yes, unless *require sign-in* | Yes | Yes (counts like anyone) |
 | Change or withdraw own vote | If vote changes allowed and poll open | same | same |
 | View results | Per *results visibility* | same | Always |
 | See voter names | Named polls, when results are visible | same | Named polls only |
-| Manage, edit, close, export, delete | No | No | Yes |
+| Manage, edit, close, export, delete, invite | No | No | Yes |
+| See or manage a group | No | No | Its owner only |
 
-Other people's polls and malformed ids both return **404**, so poll ids can't be probed. The matrix is implemented as pure functions in [`lib/poll/permissions.ts`](lib/poll/permissions.ts) with table-driven tests.
+Private polls apply the first row before everything else; "public" results then mean *everyone invited*. Someone without access sees a notice with no title or description, and the page `<title>` is a generic "Private poll". Other people's polls and groups, and malformed ids, all return **404**, so ids can't be probed. The matrix is implemented as pure functions in [`lib/poll/permissions.ts`](lib/poll/permissions.ts) with table-driven tests.
 
 ## Data model
 
@@ -122,6 +125,11 @@ erDiagram
   polls ||--o{ responses : receives
   responses ||--|{ answers : contains
   poll_options ||--o{ answers : "is answered in"
+  polls ||--o{ poll_invites : "invites (private)"
+  users ||--o{ groups : owns
+  groups ||--o{ group_members : has
+  polls ||--o{ poll_groups : "shared with"
+  groups ||--o{ poll_groups : "shared with"
 
   users {
     uuid id PK
@@ -142,7 +150,26 @@ erDiagram
     bool is_anonymous
     bool require_login
     ResultsVisibility results_visibility
+    PollVisibility visibility
     int expected_participants
+  }
+  poll_invites {
+    uuid id PK
+    uuid poll_id FK
+    citext email
+  }
+  groups {
+    uuid id PK
+    uuid owner_id FK
+    text name
+  }
+  group_members {
+    uuid group_id PK
+    citext email PK
+  }
+  poll_groups {
+    uuid poll_id PK
+    uuid group_id PK
   }
   poll_options {
     uuid id PK
@@ -172,6 +199,7 @@ erDiagram
 - **`answers.value` depends on the type:** Choice `1` = picked; Availability `2 / 1 / 0` = yes / if need be / no; Ranking = rank (1 best); Rating = score.
 - **`polls.config`** holds type-specific settings (multi-select limit, time zone, top-N, scale), validated by the type's schema.
 - **`poll_options.created_at`** lets the app spot options added after someone voted.
+- **Invites and group members are emails, not user ids** (`citext`, like `users.email`), so people can be invited before they sign up, and access is checked against the signed-in account's email. `UNIQUE(owner_id, name)` keeps a creator's group names distinct.
 - CHECK constraints back up the app's own validation (positive expected participants, slots that end after they start).
 
 ## Project structure
@@ -257,7 +285,7 @@ Every case from the design doc has defined behaviour and a test.
 - **Authorization** in every action, page and route handler; the proxy is only an optimistic redirect layer.
 - **Input:** Zod everywhere, answers validated against the poll's own option ids, `?next=` redirects restricted to same-origin paths, CSV cells escaped against formula injection.
 - **Headers:** `nosniff`, `frame-ancestors 'none'` / `X-Frame-Options: DENY`, strict referrer policy, restrictive permissions policy, no `X-Powered-By`.
-- **Abuse:** Redis sliding-window rate limits on login (10/15 min/IP), register (5/h/IP), create (10/h/user), vote (30/min/IP, 5/min/poll/IP).
+- **Abuse:** Redis sliding-window rate limits on login (10/15 min/IP), register (5/h/IP), create (10/h/user), vote (30/min/IP, 5/min/poll/IP), invites and group members (30/h/user).
 - **Accessibility:** axe WCAG 2.2 AA scans of every main screen pass in light *and* dark mode; ≥ 40–44 px tap targets on phones; labelled controls with errors linked via `aria-describedby`; status never shown by colour alone (icons + text); a skip link; the live indicator respects reduced motion; chart colours are a single-hue ramp for magnitude plus a small categorical set for multi-series charts, both validated for contrast and colour-blind separation in both themes; every chart has a legend with values, cell numbers or a screen-reader table, so colour is never the only channel.
 
 ## Decisions & trade-offs
@@ -271,6 +299,7 @@ Every case from the design doc has defined behaviour and a test.
 | **Tap-to-rank instead of drag and drop** | Works on phones, with keyboards and with screen readers. |
 | **Soft 404 for unknown poll links** | The vote page streams a loading skeleton, so the status is already 200 when the lookup fails; Next adds `noindex`. A hard 404 would need a DB query in the proxy on every request. |
 | **Edits locked once people vote** | Type, type config and anonymity can't change, and voted options can't be removed, so earlier votes keep their meaning and voters' privacy expectations hold. |
+| **Private access keyed on email, groups live-linked** | Invite anyone before they have an account, with no claim step. Linking groups (instead of copying their members) means fixing a group fixes every poll it's on. Switching public ↔ private keeps invites and votes. |
 | **Create/edit form renders client-only** | Its defaults (browser time zone, "tomorrow", local deadline) only exist in the browser; server-rendering them would mismatch on hydration. |
 
 ## Known limitations
@@ -278,5 +307,6 @@ Every case from the design doc has defined behaviour and a test.
 - **Guest voting is per browser.** Clearing cookies or switching browsers allows another vote. Use *Require sign-in to vote* when that matters.
 - **Rate limits trust `x-forwarded-for`.** Deploy behind a proxy that sets it; without one, clients can spoof it.
 - **No nonce-based Content-Security-Policy yet** (only `frame-ancestors`). A full CSP is the next hardening step for production.
-- **No email features** (verification, password reset, invitations): out of scope for this version.
+- **No email features** (verification, password reset, invitation emails): out of scope for this version. Invitees find private polls under *Shared with me* or through a link from the organiser.
+- **Private-poll access trusts the account's email.** There's no email verification, so whoever registers an invited address first gets that invite.
 - **Local/demo setup only:** there is no deploy pipeline.

@@ -20,4 +20,9 @@ describe("settingsToSubmission", () => {
     expect(settingsToSubmission({ ...DEFAULT_SETTINGS_DRAFT, expectedParticipants: "12" }).expectedParticipants).toBe(12);
     expect(settingsToSubmission({ ...DEFAULT_SETTINGS_DRAFT, expectedParticipants: "2.5" }).expectedParticipants).toBe(2.5);
   });
+
+  it("sends the chosen audience", () => {
+    expect(settingsToSubmission(DEFAULT_SETTINGS_DRAFT).visibility).toBe("PUBLIC");
+    expect(settingsToSubmission({ ...DEFAULT_SETTINGS_DRAFT, visibility: "PRIVATE" }).visibility).toBe("PRIVATE");
+  });
 });

@@ -74,6 +74,7 @@ export default async function EditPollPage({ params }: PageProps<"/polls/[id]/ed
           isAnonymous: poll.isAnonymous,
           requireLogin: poll.requireLogin,
           resultsVisibility: poll.resultsVisibility,
+          visibility: poll.visibility,
           expectedParticipants: poll.expectedParticipants,
           responseCount,
           votedOptionIds: options.filter((option) => option._count.answers > 0).map((option) => option.id),

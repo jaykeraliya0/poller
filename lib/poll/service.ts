@@ -55,23 +55,35 @@ function statusWhere(filter: PollFilter, now: Date): Prisma.PollWhereInput {
   return {};
 }
 
+const pollListSelect = {
+  id: true,
+  slug: true,
+  title: true,
+  type: true,
+  visibility: true,
+  closesAt: true,
+  closedAt: true,
+  createdAt: true,
+  expectedParticipants: true,
+  _count: { select: { responses: true } },
+} satisfies Prisma.PollSelect;
+
 /**
- * One page of an owner's polls, newest first, plus the counts the list needs.
- * `page` comes back clamped to the last page, so callers can fix a stale URL.
+ * One page of the polls matching `scope`, newest first, plus the per-filter
+ * counts. `page` comes back clamped to the last page, so callers can fix a stale URL.
  */
-export async function listPollsForOwner(
-  creatorId: string,
+async function listPollPage<S extends Prisma.PollSelect>(
+  scope: Prisma.PollWhereInput,
+  select: S,
   { filter, q, page }: PollListParams,
-  now: Date = new Date(),
+  now: Date,
 ) {
   const where: Prisma.PollWhereInput = {
-    creatorId,
-    ...statusWhere(filter, now),
-    ...(q ? { title: { contains: q, mode: "insensitive" } } : {}),
+    AND: [scope, statusWhere(filter, now), q ? { title: { contains: q, mode: "insensitive" } } : {}],
   };
   const [all, open, total] = await Promise.all([
-    db.poll.count({ where: { creatorId } }),
-    db.poll.count({ where: { creatorId, ...statusWhere("open", now) } }),
+    db.poll.count({ where: scope }),
+    db.poll.count({ where: { AND: [scope, statusWhere("open", now)] } }),
     db.poll.count({ where }),
   ]);
 
@@ -83,17 +95,7 @@ export async function listPollsForOwner(
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     skip: (currentPage - 1) * POLLS_PER_PAGE,
     take: POLLS_PER_PAGE,
-    select: {
-      id: true,
-      slug: true,
-      title: true,
-      type: true,
-      closesAt: true,
-      closedAt: true,
-      createdAt: true,
-      expectedParticipants: true,
-      _count: { select: { responses: true } },
-    },
+    select,
   });
 
   return {
@@ -103,6 +105,39 @@ export async function listPollsForOwner(
     pageCount,
     counts: { all, open, closed: all - open } satisfies Record<PollFilter, number>,
   };
+}
+
+/** One page of an owner's polls. */
+export async function listPollsForOwner(creatorId: string, params: PollListParams, now: Date = new Date()) {
+  return listPollPage({ creatorId }, pollListSelect, params, now);
+}
+
+/**
+ * One page of other people's polls this user was invited to, directly or
+ * through a group. Includes whether they've voted yet.
+ */
+export async function listPollsSharedWith(
+  user: { id: string; email: string },
+  params: PollListParams,
+  now: Date = new Date(),
+) {
+  const scope: Prisma.PollWhereInput = {
+    creatorId: { not: user.id },
+    OR: [
+      { invites: { some: { email: user.email } } },
+      { groups: { some: { group: { members: { some: { email: user.email } } } } } },
+    ],
+  };
+  return listPollPage(
+    scope,
+    {
+      ...pollListSelect,
+      creator: { select: { name: true } },
+      responses: { where: { userId: user.id }, select: { id: true }, take: 1 },
+    },
+    params,
+    now,
+  );
 }
 
 /** Closes an open poll now. The owner check happens in the caller (requireOwner). */

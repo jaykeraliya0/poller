@@ -4,10 +4,11 @@ import { ButtonLink } from "@/components/shared/button-link";
 import { isPollOpen } from "@/lib/poll/status";
 import { cn } from "@/lib/utils";
 import { DeadlineCountdown } from "./deadline-countdown";
+import { PrivatePill } from "./private-pill";
 import { StatusBadge } from "./status-badge";
 
 type PollHeaderProps = {
-  poll: Pick<Poll, "id" | "title" | "description" | "closesAt" | "closedAt">;
+  poll: Pick<Poll, "id" | "title" | "description" | "closesAt" | "closedAt" | "visibility">;
   isOwner: boolean;
   now: Date;
   /** Extra items for the meta row, e.g. the type or the live indicator. */
@@ -22,6 +23,7 @@ export function PollHeader({ poll, isOwner, now, meta, actions, className }: Pol
     <header className={cn("flex flex-col gap-3", className)}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <StatusBadge poll={poll} now={now} />
+        {poll.visibility === "PRIVATE" && <PrivatePill />}
         {poll.closesAt && isPollOpen(poll, now) && <DeadlineCountdown closesAt={poll.closesAt} renderedAt={now} />}
         {meta}
         {isOwner && (

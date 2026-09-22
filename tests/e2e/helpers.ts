@@ -82,10 +82,20 @@ export async function newVoterPage(browser: Browser, { timezoneId = "Europe/Lond
   return context.newPage();
 }
 
-type NewPollOptions = { title: string; options?: string[]; requireLogin?: boolean };
+type NewPollOptions = {
+  title: string;
+  options?: string[];
+  requireLogin?: boolean;
+  /** Only invited people can vote. */
+  isPrivate?: boolean;
+  resultsAfterVote?: boolean;
+};
 
 /** Creates a single-choice poll from the custom template; returns its vote URL path. */
-export async function createChoicePoll(page: Page, { title, options = ["Pizza", "Sushi"], requireLogin }: NewPollOptions) {
+export async function createChoicePoll(
+  page: Page,
+  { title, options = ["Pizza", "Sushi"], requireLogin, isPrivate, resultsAfterVote }: NewPollOptions,
+) {
   await page.goto("/polls/new?template=CUSTOM");
   await page.getByLabel("Title").fill(title);
   for (const [index, label] of options.entries()) {
@@ -93,6 +103,8 @@ export async function createChoicePoll(page: Page, { title, options = ["Pizza", 
     await page.getByLabel(`Option ${index + 1}`, { exact: true }).fill(label);
   }
   if (requireLogin) await page.getByRole("switch", { name: "Require sign-in to vote" }).click();
+  if (isPrivate) await page.getByRole("radio", { name: /Only people I invite/ }).click();
+  if (resultsAfterVote) await page.getByRole("radio", { name: /After voting/ }).click();
   await page.getByRole("button", { name: "Create poll" }).click();
   return readShareLink(page);
 }

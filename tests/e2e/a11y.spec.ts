@@ -65,6 +65,25 @@ test("core screens have no automatically detectable accessibility violations", a
   await page.goto("/settings");
   screens.settings = await audit(page);
 
+  await page.goto("/shared");
+  screens.sharedEmpty = await audit(page);
+  await page.goto("/groups");
+  screens.groupsEmpty = await audit(page);
+  await page.goto("/groups/new");
+  screens.newGroup = await audit(page);
+  await page.getByLabel("Name").fill("Lunch crew");
+  await page.getByLabel("People (optional)").fill("a@example.com, b@example.com");
+  await page.getByRole("button", { name: "Create group" }).click();
+  await expect(page.getByRole("heading", { name: "Lunch crew" })).toBeVisible();
+  screens.group = await audit(page);
+
+  const privatePath = await createChoicePoll(page, { title: "Private lunch", options: ["Soup", "Salad"], isPrivate: true });
+  screens.privateShareDialog = await audit(page);
+  await page.keyboard.press("Escape");
+  const outsider = await newVoterPage(browser);
+  await outsider.goto(privatePath);
+  screens.privateNotice = await audit(outsider);
+
   expect(screens).toEqual(Object.fromEntries(Object.keys(screens).map((name) => [name, []])));
 });
 

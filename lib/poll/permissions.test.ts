@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ResultsVisibility } from "@/generated/prisma/enums";
 import {
+  canAccessPoll,
   canManage,
   canSeeVoterNames,
   canViewResults,
@@ -21,12 +22,14 @@ const rules = (overrides: Partial<PollRules> = {}): PollRules => ({
   isAnonymous: false,
   requireLogin: false,
   resultsVisibility: "PUBLIC",
+  visibility: "PUBLIC",
   ...overrides,
 });
 
-const guest: Viewer = { userId: null, isOwner: false, hasVoted: false };
-const member: Viewer = { userId: "u1", isOwner: false, hasVoted: false };
-const owner: Viewer = { userId: "owner", isOwner: true, hasVoted: false };
+const guest: Viewer = { userId: null, isOwner: false, hasVoted: false, isInvited: false };
+const member: Viewer = { userId: "u1", isOwner: false, hasVoted: false, isInvited: false };
+const invitee: Viewer = { userId: "u2", isOwner: false, hasVoted: false, isInvited: true };
+const owner: Viewer = { userId: "owner", isOwner: true, hasVoted: false, isInvited: false };
 const voted = (viewer: Viewer): Viewer => ({ ...viewer, hasVoted: true });
 
 describe("vote page access", () => {
@@ -137,5 +140,40 @@ describe("voter names and management", () => {
     expect(canManage(owner)).toBe(true);
     expect(canManage(member)).toBe(false);
     expect(canManage(guest)).toBe(false);
+  });
+});
+
+describe("private polls", () => {
+  const priv = (overrides: Partial<PollRules> = {}) => rules({ visibility: "PRIVATE", ...overrides });
+
+  it("admits only the owner and invitees", () => {
+    expect(canAccessPoll(rules(), guest).allowed).toBe(true);
+    expect(canAccessPoll(priv(), owner).allowed).toBe(true);
+    expect(canAccessPoll(priv(), invitee).allowed).toBe(true);
+    expect(canAccessPoll(priv(), guest)).toEqual({ allowed: false, reason: "LOGIN_REQUIRED" });
+    expect(canAccessPoll(priv(), member)).toEqual({ allowed: false, reason: "NOT_INVITED" });
+  });
+
+  it("gates the vote page, voting and withdrawing", () => {
+    expect(canViewVotePage(priv(), member)).toEqual({ allowed: false, reason: "NOT_INVITED" });
+    expect(canVote(priv(), guest, now)).toEqual({ allowed: false, reason: "LOGIN_REQUIRED" });
+    expect(canVote(priv(), invitee, now).allowed).toBe(true);
+    expect(canWithdrawVote(priv(), voted(member), now)).toEqual({ allowed: false, reason: "NOT_INVITED" });
+    expect(canWithdrawVote(priv(), voted(invitee), now).allowed).toBe(true);
+  });
+
+  it("reports access before the poll being closed", () => {
+    expect(canVote(priv({ closedAt: past }), member, now)).toEqual({ allowed: false, reason: "NOT_INVITED" });
+  });
+
+  it("treats public results as invitees-only", () => {
+    expect(canViewResults(priv(), invitee, now).allowed).toBe(true);
+    expect(canViewResults(priv(), member, now)).toEqual({ allowed: false, reason: "NOT_INVITED" });
+    expect(canViewResults(priv({ resultsVisibility: "AFTER_VOTE" }), invitee, now)).toEqual({
+      allowed: false,
+      reason: "AFTER_VOTE",
+    });
+    expect(canViewResults(priv({ resultsVisibility: "OWNER_ONLY" }), owner, now).allowed).toBe(true);
+    expect(canSeeVoterNames(priv(), member, now)).toBe(false);
   });
 });

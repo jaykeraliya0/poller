@@ -1,4 +1,4 @@
-/** Filter, search and page for the "My polls" list, all kept in the URL. */
+/** Filter, search and page for the "My polls" and "Shared with me" lists, all kept in the URL. */
 export const POLL_FILTERS = ["all", "open", "closed"] as const;
 export type PollFilter = (typeof POLL_FILTERS)[number];
 
@@ -22,13 +22,16 @@ export function parsePollListParams(searchParams: SearchParams): PollListParams 
 }
 
 /** Dashboard URL for the given list state, leaving defaults out so the plain URL stays canonical. */
-export function pollListHref({ filter = "all", q = "", page = 1 }: Partial<PollListParams>): string {
+export function pollListHref(
+  { filter = "all", q = "", page = 1 }: Partial<PollListParams>,
+  basePath: string = DASHBOARD_PATH,
+): string {
   const params = new URLSearchParams();
   if (filter !== "all") params.set("status", filter);
   if (q.trim()) params.set("q", q.trim());
   if (page > 1) params.set("page", String(page));
   const query = params.toString();
-  return query ? `${DASHBOARD_PATH}?${query}` : DASHBOARD_PATH;
+  return query ? `${basePath}?${query}` : basePath;
 }
 
 export type PageItem = number | "gap";

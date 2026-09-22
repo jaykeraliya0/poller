@@ -4,22 +4,26 @@ import { useEffect, useState, useTransition } from "react";
 import Form from "next/form";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRightIcon, SearchIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, SearchIcon } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
 import { Spinner } from "@/components/ui/spinner";
 import { POLLS_PER_PAGE, pollListHref, type PollFilter, type PollListParams } from "@/lib/poll/list-params";
 import type { PollStatus } from "@/lib/poll/status";
+import { PrivatePill } from "./private-pill";
 import { StatusPill } from "./status-badge";
 
 export type PollSummary = {
   id: string;
+  href: string;
   title: string;
-  typeLabel: string;
+  /** Under the title: the type, and on shared polls who made it. */
+  subtitle: string;
+  isPrivate: boolean;
   status: PollStatus;
   /** "Open", "Closes in 3 hours" or "Closed", computed on the server. */
   statusLabel: string;
-  responses: number;
-  expected: number | null;
+  /** Owners see turnout; invitees see whether they've voted. */
+  detail: { kind: "turnout"; responses: number; expected: number | null } | { kind: "vote"; voted: boolean };
   createdLabel: string;
 };
 
@@ -44,7 +48,22 @@ function Turnout({ responses, expected }: { responses: number; expected: number 
   );
 }
 
+function VoteState({ voted }: { voted: boolean }) {
+  return voted ? (
+    <span className="flex items-center gap-1.5 text-sm">
+      <CheckIcon className="size-4 text-signal" aria-hidden />
+      Voted
+    </span>
+  ) : (
+    <span className="text-sm text-muted-foreground">Not voted yet</span>
+  );
+}
+
 type PollBrowserProps = {
+  /** The list's own page, which filter, search and page links point back to. */
+  basePath: string;
+  /** Column heading for the per-poll detail (turnout or your vote). */
+  detailHeading: string;
   /** The current page of polls, already filtered and searched on the server. */
   polls: PollSummary[];
   params: PollListParams;
@@ -54,7 +73,7 @@ type PollBrowserProps = {
   pageCount: number;
 };
 
-export function PollBrowser({ polls, params, counts, total, pageCount }: PollBrowserProps) {
+export function PollBrowser({ basePath, detailHeading, polls, params, counts, total, pageCount }: PollBrowserProps) {
   const { filter, q, page } = params;
   const router = useRouter();
   const [isSearching, startSearch] = useTransition();
@@ -75,10 +94,10 @@ export function PollBrowser({ polls, params, counts, total, pageCount }: PollBro
     if (next === q) return;
     const timer = setTimeout(() => {
       setPushedQ(next);
-      startSearch(() => router.replace(pollListHref({ filter, q: next }), { scroll: false }));
+      startSearch(() => router.replace(pollListHref({ filter, q: next }, basePath), { scroll: false }));
     }, SEARCH_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [query, q, filter, router]);
+  }, [query, q, filter, router, basePath]);
 
   const tabs: { value: PollFilter; label: string }[] = [
     { value: "all", label: "All" },
@@ -95,7 +114,7 @@ export function PollBrowser({ polls, params, counts, total, pageCount }: PollBro
           {tabs.map((tab) => (
             <Link
               key={tab.value}
-              href={pollListHref({ filter: tab.value, q })}
+              href={pollListHref({ filter: tab.value, q }, basePath)}
               scroll={false}
               aria-current={filter === tab.value ? "page" : undefined}
               className="flex h-8 items-center gap-1.5 rounded-[7px] px-3 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/35 aria-[current=page]:bg-panel aria-[current=page]:text-foreground aria-[current=page]:shadow-[0_1px_2px_rgb(21_24_35/0.08)]"
@@ -106,7 +125,7 @@ export function PollBrowser({ polls, params, counts, total, pageCount }: PollBro
           ))}
         </nav>
         {/* A real GET form, so Enter (or no JavaScript at all) still searches. */}
-        <Form action="/dashboard" role="search" className="relative sm:w-72">
+        <Form action={basePath} role="search" className="relative sm:w-72">
           {filter !== "all" && <input type="hidden" name="status" value={filter} />}
           <label>
           <span className="sr-only">Search polls</span>
@@ -135,7 +154,7 @@ export function PollBrowser({ polls, params, counts, total, pageCount }: PollBro
           <div className="hidden grid-cols-[minmax(0,1fr)_10rem_11rem_8rem_1.25rem] gap-4 border-b px-5 py-2.5 text-xs font-medium text-muted-foreground md:grid" aria-hidden>
             <span>Poll</span>
             <span>Status</span>
-            <span>Responses</span>
+            <span>{detailHeading}</span>
             <span>Created</span>
             <span />
           </div>
@@ -143,18 +162,23 @@ export function PollBrowser({ polls, params, counts, total, pageCount }: PollBro
             {polls.map((poll) => (
               <li key={poll.id}>
                 <Link
-                  href={`/polls/${poll.id}/manage`}
+                  href={poll.href}
                   className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-4 py-3.5 outline-none transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/35 focus-visible:ring-inset sm:px-5 md:grid-cols-[minmax(0,1fr)_10rem_11rem_8rem_1.25rem]"
                 >
                   <span className="flex min-w-0 flex-col gap-0.5">
                     <span className="truncate font-semibold group-hover:text-signal-ink">{poll.title}</span>
-                    <span className="text-xs text-muted-foreground">{poll.typeLabel}</span>
+                    <span className="truncate text-xs text-muted-foreground">{poll.subtitle}</span>
                   </span>
-                  <span className="justify-self-end md:justify-self-start">
+                  <span className="flex flex-wrap items-center gap-1.5 justify-self-end md:justify-self-start">
                     <StatusPill status={poll.status} label={poll.statusLabel} />
+                    {poll.isPrivate && <PrivatePill />}
                   </span>
                   <span className="md:col-auto">
-                    <Turnout responses={poll.responses} expected={poll.expected} />
+                    {poll.detail.kind === "turnout" ? (
+                      <Turnout responses={poll.detail.responses} expected={poll.detail.expected} />
+                    ) : (
+                      <VoteState voted={poll.detail.voted} />
+                    )}
                   </span>
                   <span className="justify-self-end text-sm text-muted-foreground md:justify-self-start">{poll.createdLabel}</span>
                   <ChevronRightIcon className="hidden size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground md:block" aria-hidden />
@@ -172,7 +196,7 @@ export function PollBrowser({ polls, params, counts, total, pageCount }: PollBro
               ? `${total} ${total === 1 ? "poll" : "polls"}`
               : `Showing ${firstShown}–${lastShown} of ${total} polls`}
           </p>
-          <Pagination page={page} pageCount={pageCount} hrefFor={(target) => pollListHref({ filter, q, page: target })} />
+          <Pagination page={page} pageCount={pageCount} hrefFor={(target) => pollListHref({ filter, q, page: target }, basePath)} />
         </div>
       )}
     </div>

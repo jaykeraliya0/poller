@@ -16,6 +16,7 @@ const settings: PollSubmission["settings"] = {
   isAnonymous: false,
   requireLogin: false,
   resultsVisibility: "PUBLIC",
+  visibility: "PUBLIC",
   expectedParticipants: null,
 };
 
@@ -36,7 +37,7 @@ const edit = (poll: ChoicePoll, options: { id?: string; label: string }[], overr
 const voteOn = (poll: { slug: string }, optionId: string) =>
   castVote(
     { slug: poll.slug, answers: { optionIds: [optionId] }, voterName: "Voter" },
-    { userId: null, userName: null, voterToken: crypto.randomUUID() },
+    { userId: null, userName: null, userEmail: null, voterToken: crypto.randomUUID() },
   );
 
 const labelsOf = async (pollId: string) =>

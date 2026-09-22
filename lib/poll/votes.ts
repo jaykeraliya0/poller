@@ -3,6 +3,7 @@ import { cache } from "react";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { AppError, ErrorCode, toFieldErrors, type FieldErrors } from "@/lib/errors";
+import { buildViewer } from "@/lib/poll/access";
 import { canViewResults, canVote, canWithdrawVote } from "@/lib/poll/permissions";
 import { isValidSlug } from "@/lib/poll/slug";
 import { voteEnvelopeSchema } from "@/lib/validation/vote";
@@ -12,6 +13,8 @@ import { getPollType } from "@/poll-types/registry";
 export type VoterIdentity = {
   userId: string | null;
   userName: string | null;
+  /** Matched against private-poll invites. */
+  userEmail: string | null;
   voterToken: string;
 };
 
@@ -75,7 +78,7 @@ export async function castVote(input: unknown, identity: VoterIdentity, now: Dat
   const poll = await loadPollBySlug(slug);
   if (!poll) throw new AppError(ErrorCode.NOT_FOUND);
 
-  const viewer = { userId: identity.userId, isOwner: poll.creatorId === identity.userId, hasVoted: false };
+  const viewer = await buildViewer(poll, identity, false);
   const gate = canVote(poll, viewer, now);
   if (!gate.allowed) throw new AppError(gate.reason);
 
@@ -155,7 +158,7 @@ export async function withdrawVote(slug: string, identity: VoterIdentity, now: D
   if (!poll) throw new AppError(ErrorCode.NOT_FOUND);
 
   const existing = await findViewerResponse(db, poll.id, identity);
-  const viewer = { userId: identity.userId, isOwner: poll.creatorId === identity.userId, hasVoted: Boolean(existing) };
+  const viewer = await buildViewer(poll, identity, Boolean(existing));
   const decision = canWithdrawVote(poll, viewer, now);
   if (!decision.allowed) {
     throw new AppError(decision.reason, decision.reason === "NOT_FOUND" ? "You haven't voted on this poll." : undefined);

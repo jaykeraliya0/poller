@@ -6,6 +6,7 @@ const settings: PollSubmission["settings"] = {
   allowVoteChange: true,
   isAnonymous: false,
   requireLogin: false,
+  visibility: "PUBLIC",
   resultsVisibility: "PUBLIC",
   expectedParticipants: null,
 };

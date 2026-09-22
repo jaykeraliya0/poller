@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PollTemplate, PollType, ResultsVisibility } from "@/generated/prisma/enums";
+import { PollTemplate, PollType, PollVisibility, ResultsVisibility } from "@/generated/prisma/enums";
 
 export const POLL_LIMITS = {
   titleMin: 3,
@@ -34,6 +34,7 @@ export const pollSettingsSchema = z.object({
   isAnonymous: z.boolean(),
   requireLogin: z.boolean(),
   resultsVisibility: z.enum(ResultsVisibility),
+  visibility: z.enum(PollVisibility),
   expectedParticipants: z
     .number({ error: "Enter a whole number" })
     .int("Enter a whole number")
@@ -50,6 +51,7 @@ export const DEFAULT_POLL_SETTINGS: PollSettings = {
   isAnonymous: false,
   requireLogin: false,
   resultsVisibility: "PUBLIC",
+  visibility: "PUBLIC",
   expectedParticipants: null,
 };
 

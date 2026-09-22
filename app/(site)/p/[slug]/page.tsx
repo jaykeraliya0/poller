@@ -3,13 +3,15 @@ import { notFound } from "next/navigation";
 import { ChartColumnIcon, CircleCheckIcon, LockIcon, LogInIcon } from "lucide-react";
 import { PageContainer } from "@/components/layout/page-container";
 import { PollHeader } from "@/components/poll/poll-header";
+import { PrivatePollNotice } from "@/components/poll/private-poll-notice";
 import { ButtonLink } from "@/components/shared/button-link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AnswerSummary } from "@/components/vote/answer-summary";
 import { VoteForm } from "@/components/vote/vote-form";
 import { formatRelative } from "@/lib/datetime";
 import { db } from "@/lib/db";
-import { canViewResults, canViewVotePage } from "@/lib/poll/permissions";
+import { buildViewer } from "@/lib/poll/access";
+import { canAccessPoll, canViewResults, canViewVotePage } from "@/lib/poll/permissions";
 import { getClosedAt } from "@/lib/poll/status";
 import { readVoterIdentity } from "@/lib/poll/viewer";
 import { findViewerResponse, getPollBySlug } from "@/lib/poll/votes";
@@ -18,6 +20,8 @@ import { getPollType } from "@/poll-types/registry";
 export async function generateMetadata({ params }: PageProps<"/p/[slug]">): Promise<Metadata> {
   const poll = await getPollBySlug((await params).slug);
   if (!poll) return { title: "Poll not found" };
+  // Never leak a private poll's title, whoever is asking.
+  if (poll.visibility === "PRIVATE") return { title: "Private poll", robots: { index: false } };
   // Polls are private-by-link: keep them out of search engines.
   return { title: poll.title, description: poll.description ?? "Cast your vote", robots: { index: false } };
 }
@@ -30,8 +34,14 @@ export default async function VotePage({ params }: PageProps<"/p/[slug]">) {
   const identity = await readVoterIdentity();
   const existing =
     identity.userId || identity.voterToken ? await findViewerResponse(db, poll.id, identity) : null;
+  const viewer = await buildViewer(poll, identity, Boolean(existing));
+  const access = canAccessPoll(poll, viewer);
+  if (!access.allowed) {
+    return <PrivatePollNotice reason={access.reason} path={`/p/${slug}`} signedInAs={identity.userEmail} />;
+  }
+
   const now = new Date();
-  const isOwner = poll.creatorId === identity.userId;
+  const isOwner = viewer.isOwner;
   const closedAt = getClosedAt(poll, now);
 
   const yourVote = existing && (
@@ -60,7 +70,7 @@ export default async function VotePage({ params }: PageProps<"/p/[slug]">) {
         {yourVote}
       </div>
     );
-  } else if (!canViewVotePage(poll, { userId: identity.userId, isOwner, hasVoted: false }).allowed) {
+  } else if (!canViewVotePage(poll, viewer).allowed) {
     body = (
       <Alert className="max-w-2xl">
         <LockIcon aria-hidden />
@@ -123,7 +133,7 @@ export default async function VotePage({ params }: PageProps<"/p/[slug]">) {
     );
   }
 
-  const resultsVisible = canViewResults(poll, { userId: identity.userId, isOwner, hasVoted: Boolean(existing) }, now).allowed;
+  const resultsVisible = canViewResults(poll, viewer, now).allowed;
 
   return (
     <PageContainer className="flex flex-col gap-7 py-7 lg:py-10">

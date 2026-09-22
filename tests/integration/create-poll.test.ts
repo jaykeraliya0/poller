@@ -21,6 +21,7 @@ const settings: PollSubmission["settings"] = {
   isAnonymous: false,
   requireLogin: false,
   resultsVisibility: "PUBLIC",
+  visibility: "PUBLIC",
   expectedParticipants: null,
 };
 

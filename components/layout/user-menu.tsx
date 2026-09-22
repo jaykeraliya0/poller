@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronsUpDownIcon, LayoutListIcon, LogOutIcon, SettingsIcon } from "lucide-react";
+import { ChevronsUpDownIcon, InboxIcon, LayoutListIcon, LogOutIcon, SettingsIcon, UsersIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { logoutAction } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -84,6 +84,14 @@ export function UserMenu({ name, email, variant = "avatar" }: UserMenuProps) {
         <DropdownMenuItem render={<Link href="/dashboard" />}>
           <LayoutListIcon aria-hidden />
           My polls
+        </DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/shared" />}>
+          <InboxIcon aria-hidden />
+          Shared with me
+        </DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/groups" />}>
+          <UsersIcon aria-hidden />
+          Groups
         </DropdownMenuItem>
         <DropdownMenuItem render={<Link href="/settings" />}>
           <SettingsIcon aria-hidden />
