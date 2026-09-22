@@ -1,4 +1,4 @@
-import { expect, register, test, uniqueEmail } from "./helpers";
+import { expect, fillRegisterForm, register, test, uniqueEmail } from "./helpers";
 
 const password = "correct horse battery";
 
@@ -15,16 +15,16 @@ test("redirects to login and back to the original page after signing up", async 
   await page.getByRole("button", { name: "Create account" }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole("heading", { name: "Hi, Ana" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "My polls" })).toBeVisible();
+  await expect(page.getByText("No polls yet")).toBeVisible();
 });
 
 test("shows field errors and keeps input when the email is taken", async ({ page }) => {
   const email = uniqueEmail();
   await register(page, { name: "First", email, password });
-  await expect(page).toHaveURL(/\/dashboard$/);
   await page.context().clearCookies();
 
-  await register(page, { name: "Second", email, password });
+  await fillRegisterForm(page, { name: "Second", email, password });
   await expect(page.getByText("An account with this email already exists")).toBeVisible();
   await expect(page.getByLabel("Name")).toHaveValue("Second");
   await expect(page.getByLabel("Email")).toHaveValue(email);
@@ -34,7 +34,6 @@ test("shows field errors and keeps input when the email is taken", async ({ page
 test("signs out, rejects a wrong password, then signs in", async ({ page }) => {
   const email = uniqueEmail();
   await register(page, { name: "Ben Ortiz", email, password });
-  await expect(page).toHaveURL(/\/dashboard$/);
 
   await page.getByRole("button", { name: "Account menu" }).click();
   await page.getByRole("menuitem", { name: "Sign out" }).click();

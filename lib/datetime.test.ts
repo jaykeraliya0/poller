@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayKey, formatShortSlot, formatSlotLabel, isValidTimeZone } from "./datetime";
+import { dayKey, formatShortSlot, formatSlotLabel, isValidTimeZone, zonedDateTime } from "./datetime";
 
 describe("datetime helpers", () => {
   it("validates IANA time zones", () => {
@@ -30,5 +30,18 @@ describe("datetime helpers", () => {
       "UTC",
     );
     expect(label).toBe("Sat 26 Sep, 10pm – Sun 27 Sep, 1am");
+  });
+});
+
+describe("zonedDateTime", () => {
+  it("interprets wall-clock time in the given zone", () => {
+    expect(zonedDateTime("2026-09-25", "18:00", "Europe/London")?.toISOString()).toBe("2026-09-25T17:00:00.000Z");
+    expect(zonedDateTime("2026-09-25", "18:00", "Asia/Kolkata")?.toISOString()).toBe("2026-09-25T12:30:00.000Z");
+    expect(zonedDateTime("2026-12-25", "18:00", "Europe/London")?.toISOString()).toBe("2026-12-25T18:00:00.000Z");
+  });
+
+  it("returns null for malformed input", () => {
+    expect(zonedDateTime("", "18:00", "UTC")).toBeNull();
+    expect(zonedDateTime("2026-09-25", "6pm", "UTC")).toBeNull();
   });
 });

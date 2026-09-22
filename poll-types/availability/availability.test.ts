@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { InsightOption } from "@/lib/insights/types";
 import { makeContext, makePoll, makeResponse } from "@/tests/fixtures/insights";
 import { availabilityPollType } from "./definition";
@@ -29,6 +29,12 @@ const vote = (a: number, b: number, c: number) =>
 describe("availability setup", () => {
   const parse = (input: unknown) => availabilityPollType.setupSchema.safeParse(input);
 
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-22T12:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
   it("sorts slots chronologically and labels them in the poll time zone", () => {
     const result = parse({
       config,
@@ -56,6 +62,15 @@ describe("availability setup", () => {
 
     const duplicate = parse({ config, options: [slot, { ...slot }] });
     expect(duplicate.error?.issues[0].message).toBe("Duplicate time slot");
+  });
+
+  it("rejects slots that have already started", () => {
+    const past = { startsAt: "2026-09-22T11:00:00Z", endsAt: "2026-09-22T13:00:00Z" };
+    const slot = { startsAt: "2026-09-25T17:00:00Z", endsAt: "2026-09-25T19:00:00Z" };
+    const result = parse({ config, options: [slot, past] });
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({ path: ["options", 1, "startsAt"], message: "This time slot is in the past" }),
+    ]);
   });
 });
 

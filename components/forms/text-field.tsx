@@ -1,34 +1,42 @@
-import { useId } from "react";
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+"use client";
 
-type TextFieldProps = React.ComponentProps<typeof Input> & {
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import { FieldShell } from "./field-shell";
+
+type SharedProps = {
   label: string;
-  description?: string;
+  description?: React.ReactNode;
   errors?: string[];
 };
 
-/** Labelled input with description and inline errors wired up for screen readers. */
-export function TextField({ label, description, errors, className, id, ...inputProps }: TextFieldProps) {
-  const generatedId = useId();
-  const inputId = id ?? generatedId;
-  const invalid = Boolean(errors?.length);
-
+export function TextField({
+  label,
+  description,
+  errors,
+  id,
+  className,
+  ...inputProps
+}: SharedProps & React.ComponentProps<typeof Input>) {
   return (
-    <Field data-invalid={invalid || undefined}>
-      <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
-      <Input
-        id={inputId}
-        aria-invalid={invalid || undefined}
-        aria-describedby={invalid ? `${inputId}-error` : description ? `${inputId}-description` : undefined}
-        className={cn("h-11", className)}
-        {...inputProps}
-      />
-      {description && !invalid && (
-        <FieldDescription id={`${inputId}-description`}>{description}</FieldDescription>
-      )}
-      <FieldError id={`${inputId}-error`} errors={errors?.map((message) => ({ message }))} />
-    </Field>
+    <FieldShell label={label} description={description} errors={errors} id={id}>
+      {(control) => <Input className={cn("h-11", className)} {...control} {...inputProps} />}
+    </FieldShell>
+  );
+}
+
+export function TextareaField({
+  label,
+  description,
+  errors,
+  id,
+  className,
+  ...textareaProps
+}: SharedProps & React.ComponentProps<typeof Textarea>) {
+  return (
+    <FieldShell label={label} description={description} errors={errors} id={id}>
+      {(control) => <Textarea className={cn("min-h-20", className)} {...control} {...textareaProps} />}
+    </FieldShell>
   );
 }

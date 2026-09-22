@@ -17,10 +17,18 @@ export function uniqueEmail(prefix = "e2e") {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`;
 }
 
-export async function register(page: Page, { name, email, password }: { name: string; email: string; password: string }) {
+type Account = { name: string; email: string; password: string };
+
+export async function fillRegisterForm(page: Page, { name, email, password }: Account) {
   await page.goto("/register");
   await page.getByLabel("Name").fill(name);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
+}
+
+/** Signs up and waits until the session exists (landing on the dashboard). */
+export async function register(page: Page, account: Account) {
+  await fillRegisterForm(page, account);
+  await page.waitForURL(/\/dashboard$/);
 }

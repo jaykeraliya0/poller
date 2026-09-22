@@ -1,5 +1,19 @@
 import { format } from "date-fns";
-import { tz } from "@date-fns/tz";
+import { TZDate, tz } from "@date-fns/tz";
+
+/**
+ * Converts a wall-clock date and time ("2026-09-25", "18:30") in `timeZone`
+ * into an absolute instant. Returns null for malformed input.
+ */
+export function zonedDateTime(date: string, time: string, timeZone: string): Date | null {
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const timeMatch = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!dateMatch || !timeMatch) return null;
+  const [year, month, day] = dateMatch.slice(1).map(Number);
+  const [hours, minutes] = timeMatch.slice(1).map(Number);
+  const zoned = new TZDate(year, month - 1, day, hours, minutes, timeZone);
+  return Number.isNaN(zoned.getTime()) ? null : new Date(zoned.getTime());
+}
 
 export function isValidTimeZone(timeZone: string): boolean {
   try {

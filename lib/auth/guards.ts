@@ -1,5 +1,5 @@
 import "server-only";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -47,5 +47,14 @@ export async function requireOwner(pollId: string) {
 
   const poll = await db.poll.findFirst({ where: { id: pollId, creatorId: user.id } });
   if (!poll) throw new AppError(ErrorCode.NOT_FOUND);
+  return { user, poll };
+}
+
+/** For owner-only pages: login redirect if signed out, 404 if not their poll. */
+export async function requirePageOwner(pollId: string, path: string) {
+  const user = await requirePageUser(path);
+  if (!pollIdSchema.safeParse(pollId).success) notFound();
+  const poll = await db.poll.findFirst({ where: { id: pollId, creatorId: user.id } });
+  if (!poll) notFound();
   return { user, poll };
 }

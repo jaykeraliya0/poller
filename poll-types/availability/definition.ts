@@ -22,6 +22,10 @@ const slotSchema = z
   .refine((slot) => slot.endsAt > slot.startsAt, {
     error: "End must be after start",
     path: ["endsAt"],
+  })
+  .refine((slot) => slot.startsAt.getTime() > Date.now(), {
+    error: "This time slot is in the past",
+    path: ["startsAt"],
   });
 
 const slotsSchema = z
