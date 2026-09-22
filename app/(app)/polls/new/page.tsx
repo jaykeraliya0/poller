@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeftIcon } from "lucide-react";
 import { PageContainer } from "@/components/layout/page-container";
+import { BackLink } from "@/components/shared/back-link";
 import { PollFormLoader } from "@/components/poll-form/poll-form-loader";
 import { TemplateGrid } from "@/components/poll/template-card";
 import { requirePageUser } from "@/lib/auth/guards";
@@ -26,13 +25,9 @@ export default async function NewPollPage({ searchParams }: PageProps<"/polls/ne
 
   return (
     <PageContainer className="py-6">
-      <Link
-        href="/polls/new"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeftIcon className="size-4" aria-hidden />
+      <BackLink href="/polls/new" className="mb-2">
         Templates
-      </Link>
+      </BackLink>
       <h1 className="mb-6 text-2xl font-semibold tracking-tight">{template.name}</h1>
       {/* Keyed so switching template via the URL starts a fresh draft. */}
       <PollFormLoader key={template.id} mode="create" template={template} />

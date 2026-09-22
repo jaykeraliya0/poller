@@ -174,3 +174,23 @@ describe("availability summarizeAnswers", () => {
     );
   });
 });
+
+describe("availability limits", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-22T12:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const slots = (count: number) =>
+    Array.from({ length: count }, (_, i) => {
+      const start = new Date(Date.UTC(2026, 9, 1, 8) + i * 3_600_000);
+      return { startsAt: start.toISOString(), endsAt: new Date(start.getTime() + 3_600_000).toISOString() };
+    });
+
+  it("accepts up to 50 time slots and rejects 51", () => {
+    const parse = (count: number) => availabilityPollType.setupSchema.safeParse({ config, options: slots(count) });
+    expect(parse(50).success).toBe(true);
+    expect(parse(51).error?.issues[0].message).toBe("Up to 50 time slots");
+  });
+});

@@ -71,7 +71,7 @@ export function OptionListEditor({
           return (
             <li key={option.key} className="flex flex-col gap-1">
               <div className="flex items-center gap-1.5">
-                <span className="w-6 shrink-0 text-center text-sm text-muted-foreground tabular-nums" aria-hidden>
+                <span className="hidden w-6 shrink-0 text-center text-sm text-muted-foreground tabular-nums sm:block" aria-hidden>
                   {index + 1}
                 </span>
                 <Input
@@ -106,6 +106,7 @@ export function OptionListEditor({
                   type="button"
                   variant="ghost"
                   size="icon-lg"
+                  className="size-10"
                   onClick={() => move(index, -1)}
                   disabled={index === 0}
                   aria-label={`Move option ${index + 1} up`}
@@ -116,6 +117,7 @@ export function OptionListEditor({
                   type="button"
                   variant="ghost"
                   size="icon-lg"
+                  className="size-10"
                   onClick={() => move(index, 1)}
                   disabled={index === options.length - 1}
                   aria-label={`Move option ${index + 1} down`}
@@ -126,6 +128,7 @@ export function OptionListEditor({
                   type="button"
                   variant="ghost"
                   size="icon-lg"
+                  className="size-10"
                   onClick={() => remove(index)}
                   disabled={locked || options.length <= min}
                   aria-label={locked ? `Option ${index + 1} has votes and can't be removed` : `Remove option ${index + 1}`}
@@ -134,7 +137,7 @@ export function OptionListEditor({
                   <XIcon />
                 </Button>
               </div>
-              <FieldError id={errorId} className="pl-7.5" errors={rowErrors?.map((message) => ({ message }))} />
+              <FieldError id={errorId} className="sm:pl-7.5" errors={rowErrors?.map((message) => ({ message }))} />
             </li>
           );
         })}

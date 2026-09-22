@@ -6,7 +6,7 @@ import type { PollFormProps } from "./poll-form";
 
 export function PollFormSkeleton() {
   return (
-    <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading form">
+    <div className="flex flex-col gap-4" role="status" aria-busy="true" aria-label="Loading form">
       <Skeleton className="h-52 rounded-3xl" />
       <Skeleton className="h-72 rounded-3xl" />
       <Skeleton className="h-96 rounded-3xl" />

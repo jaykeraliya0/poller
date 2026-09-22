@@ -5,6 +5,8 @@ import { PrismaClient } from "../generated/prisma/client";
 import { createSlug } from "../lib/poll/slug";
 import { availabilityPollType } from "../poll-types/availability/definition";
 import { choicePollType } from "../poll-types/choice/definition";
+import { rankingPollType } from "../poll-types/ranking/definition";
+import { ratingPollType } from "../poll-types/rating/definition";
 
 const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
@@ -119,6 +121,77 @@ async function seedAvailabilityPoll(creatorId: string) {
   return poll;
 }
 
+async function seedRankingPoll(creatorId: string) {
+  const setup = rankingPollType.setupSchema.parse({
+    config: { rankTop: 3 },
+    options: ["Dark mode", "Offline support", "CSV export", "Faster search"].map((label) => ({ label })),
+  });
+  const poll = await db.poll.create({
+    data: {
+      creatorId,
+      slug: createSlug(),
+      type: "RANKING",
+      template: "FEATURE_PRIORITY",
+      title: "What should we build next?",
+      description: "Rank the three features you think matter most.",
+      config: setup.config,
+      expectedParticipants: 6,
+      options: { create: setup.options },
+    },
+    include: { options: { orderBy: { position: "asc" } } },
+  });
+  // Option indexes in preference order.
+  const ballots = [[1, 0, 3], [0, 1, 2], [1, 3, 0], [1, 0, 2], [3, 1, 0]];
+  for (const [i, ballot] of ballots.entries()) {
+    await db.pollResponse.create({
+      data: {
+        pollId: poll.id,
+        voterToken: `seed-ranking-${i}`,
+        voterName: voters[i],
+        comment: i === 1 ? "Dark mode is the most requested thing in support tickets." : undefined,
+        answers: { create: ballot.map((index, rank) => ({ optionId: poll.options[index].id, value: rank + 1 })) },
+      },
+    });
+  }
+  return poll;
+}
+
+async function seedRatingPoll(creatorId: string) {
+  const setup = ratingPollType.setupSchema.parse({
+    config: { scale: 5, lowLabel: "Not keen", highLabel: "Love it" },
+    options: ["Lisbon", "Barcelona", "Amsterdam"].map((label) => ({ label })),
+  });
+  const poll = await db.poll.create({
+    data: {
+      creatorId,
+      slug: createSlug(),
+      type: "RATING",
+      template: "OFFSITE_LOCATION",
+      title: "Where should we go for the offsite?",
+      description: "Rate each place from 1 to 5.",
+      config: setup.config,
+      isAnonymous: true,
+      closesAt: new Date(Date.now() + 2 * DAY),
+      options: { create: setup.options },
+    },
+    include: { options: { orderBy: { position: "asc" } } },
+  });
+  // Barcelona is deliberately polarising: loved or disliked, rarely in between.
+  const grid = [[5, 1, 3], [4, 5, 3], [4, 1, 2], [5, 5, 4], [4, 2, 3]];
+  const comments: Record<number, string> = { 1: "Barcelona for the beach!", 2: "Please not somewhere too hot." };
+  for (const [i, scores] of grid.entries()) {
+    await db.pollResponse.create({
+      data: {
+        pollId: poll.id,
+        voterToken: `seed-rating-${i}`,
+        comment: comments[i],
+        answers: { create: scores.map((value, index) => ({ optionId: poll.options[index].id, value })) },
+      },
+    });
+  }
+  return poll;
+}
+
 async function main() {
   // Idempotent: removing the demo user cascades to their polls.
   await db.user.deleteMany({ where: { email: DEMO_EMAIL } });
@@ -127,7 +200,12 @@ async function main() {
     data: { email: DEMO_EMAIL, name: "Demo Organiser", passwordHash: await hash(DEMO_PASSWORD) },
   });
 
-  const polls = [await seedChoicePoll(demo.id), await seedAvailabilityPoll(demo.id)];
+  const polls = [
+    await seedChoicePoll(demo.id),
+    await seedAvailabilityPoll(demo.id),
+    await seedRankingPoll(demo.id),
+    await seedRatingPoll(demo.id),
+  ];
 
   console.log(`Seeded ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
   for (const poll of polls) console.log(`  /p/${poll.slug}  ${poll.title}`);

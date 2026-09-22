@@ -39,6 +39,8 @@ const randomIp = () => `10.${[0, 0, 0].map(() => Math.floor(Math.random() * 254)
 export async function newVoterPage(browser: Browser): Promise<Page> {
   const context = await browser.newContext({
     ...devices["Pixel 7"],
+    // Pinned so slot times read the same as in the organiser's context.
+    timezoneId: "Europe/London",
     baseURL: test.info().project.use.baseURL,
     extraHTTPHeaders: { "x-forwarded-for": randomIp() },
   });

@@ -31,9 +31,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={cn("h-full antialiased font-sans", inter.variable, geistMono.variable)}
     >
       <body className="flex min-h-full flex-col">
+        <a
+          href="#main"
+          className="sr-only z-50 rounded-2xl bg-background px-4 py-3 font-medium shadow-lg focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+        >
+          Skip to content
+        </a>
         <Providers>
           <SiteHeader />
-          <main className="flex flex-1 flex-col pb-[env(safe-area-inset-bottom)]">{children}</main>
+          <main id="main" tabIndex={-1} className="flex flex-1 flex-col pb-[env(safe-area-inset-bottom)] outline-none">
+            {children}
+          </main>
         </Providers>
       </body>
     </html>

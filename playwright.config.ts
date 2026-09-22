@@ -12,6 +12,8 @@ export default defineConfig({
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL,
+    // One fixed zone for every browser, so date/time assertions are deterministic.
+    timezoneId: "Europe/London",
     trace: "retain-on-failure",
   },
   projects: [

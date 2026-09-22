@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeftIcon, InfoIcon } from "lucide-react";
+import { InfoIcon } from "lucide-react";
 import { PageContainer } from "@/components/layout/page-container";
+import { BackLink } from "@/components/shared/back-link";
 import { PollFormLoader } from "@/components/poll-form/poll-form-loader";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { requirePageOwner } from "@/lib/auth/guards";
@@ -24,13 +24,7 @@ export default async function EditPollPage({ params }: PageProps<"/polls/[id]/ed
 
   return (
     <PageContainer className="flex flex-col gap-6 py-6">
-      <Link
-        href={`/polls/${poll.id}/manage`}
-        className="inline-flex items-center gap-1.5 self-start text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeftIcon className="size-4" aria-hidden />
-        Back to results
-      </Link>
+      <BackLink href={`/polls/${poll.id}/manage`}>Back to results</BackLink>
       <h1 className="text-2xl font-semibold tracking-tight">Edit poll</h1>
       {responseCount > 0 && (
         <Alert>

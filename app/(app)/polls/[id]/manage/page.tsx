@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeftIcon, ExternalLinkIcon, PencilIcon } from "lucide-react";
+import { ExternalLinkIcon, PencilIcon } from "lucide-react";
 import { PageContainer } from "@/components/layout/page-container";
+import { BackLink } from "@/components/shared/back-link";
 import { AutoRefresh } from "@/components/insights/auto-refresh";
 import { PollResults } from "@/components/insights/poll-results";
 import { PollHeader } from "@/components/poll/poll-header";
@@ -34,10 +34,7 @@ export default async function ManagePollPage({ params, searchParams }: PageProps
   return (
     <PageContainer className="flex flex-col gap-6 py-6">
       <div className="flex items-center justify-between gap-3">
-        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeftIcon className="size-4" aria-hidden />
-          My polls
-        </Link>
+        <BackLink href="/dashboard">My polls</BackLink>
         {open && <AutoRefresh />}
       </div>
 
