@@ -40,7 +40,7 @@ test("owner downloads the CSV and deletes the poll", async ({ page }) => {
 
   await page.getByRole("button", { name: "More actions" }).click();
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("menuitem", { name: "Download responses (CSV)" }).click();
+  await page.getByRole("menuitem", { name: "Responses (CSV)" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/^poll-[2-9a-z]{10}-responses\.csv$/);
 

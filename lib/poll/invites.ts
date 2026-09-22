@@ -69,7 +69,8 @@ export type PollAccess = Awaited<ReturnType<typeof listPollAccess>>;
 /** Everything the owner's access panel shows: direct invites, and their groups with which are linked. */
 export async function listPollAccess(poll: { id: string; creatorId: string }) {
   const [invites, groups] = await Promise.all([
-    db.pollInvite.findMany({ where: { pollId: poll.id }, orderBy: { createdAt: "asc" } }),
+    // Invites added together share a timestamp; ids (UUIDv7) keep them in the order they were added.
+    db.pollInvite.findMany({ where: { pollId: poll.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
     db.group.findMany({
       where: { ownerId: poll.creatorId },
       orderBy: { name: "asc" },

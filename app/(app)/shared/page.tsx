@@ -40,7 +40,7 @@ export default async function SharedPollsPage({ searchParams }: PageProps<"/shar
       </AppPage>
     );
   }
-  const params = parsePollListParams(await searchParams);
+  const params = parsePollListParams(await searchParams, ["all", "open", "closed"]);
   const now = new Date();
   const { polls, total, page, pageCount, counts } = await listPollsSharedWith(user, params, now);
   if (page !== params.page) redirect(pollListHref({ ...params, page }, BASE_PATH));

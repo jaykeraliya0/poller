@@ -51,7 +51,7 @@ describe("listing an owner's polls a page at a time", () => {
     expect(await titles("open")).toEqual(["Deadline ahead", "No deadline"]);
     expect(await titles("closed")).toEqual(["Closed by hand", "Deadline passed"]);
     const { counts } = await listPollsForOwner(ownerId, { filter: "open", q: "", page: 1 }, now);
-    expect(counts).toEqual({ all: 4, open: 2, closed: 2 });
+    expect(counts).toEqual({ all: 4, open: 2, closed: 2, archived: 0 });
   });
 
   it("searches titles case-insensitively within the chosen status", async () => {

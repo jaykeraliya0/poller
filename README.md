@@ -31,7 +31,7 @@ Built with **Next.js 16** (App Router, Server Actions), **shadcn/ui** (Base UI),
 | **Ranking** | Taps options in order of preference (top N or all) | Borda points, average rank, first-choice share, tie detection, rank-breakdown heatmap, head-to-head matrix with Condorcet winner |
 | **Rating** | Scores each option 1–5 or 1–10 | Average, median, histogram, **"opinions split"** when many rate very low *and* very high, diverging sentiment bars, average ± spread plot |
 
-**For the organiser:** templates for the four use cases, a dashboard, a live manage page (refreshes every 15 s), share link / native share sheet, deadline and close/reopen, anonymous or named voting, "require sign-in", results visibility (public / after voting / after close / owner only), **private polls** open only to people invited by email or through a **group** (a creator's own saved list of people, live-linked so membership changes apply straight away), expected-participants response rate, editing while the poll is open, CSV export, and deleting polls or the account.
+**For the organiser:** templates for the four use cases, a dashboard, a live manage page (refreshes every 15 s), share link / native share sheet, deadline and close/reopen, anonymous or named voting, "require sign-in", results visibility (public / after voting / after close / owner only), **private polls** open only to people invited by email or through a **group** (a creator's own saved list of people, live-linked so membership changes apply straight away), expected-participants response rate, editing while the poll is open, **archiving** (closes the poll and moves it to an *Archived* tab, with everything kept; unarchive to reopen or edit), **bulk actions** on the dashboard (tick polls, or a whole page, to close, archive, unarchive or delete them), **exports** (responses as CSV, everything as JSON, a results report and an analytics report as PDF, and a shareable results image as PNG), and deleting polls or the account.
 
 **Email (via Resend):** confirm your address after signing up (you need it to create polls, and private-poll invites only count for confirmed addresses), reset a forgotten password (signs out every other session), invitation emails when someone is invited to a private poll directly or through a group (once per person per poll), a *remind people who haven't voted* button for private polls (once per 12 h) plus an automatic reminder a day before the deadline, and a *results are in* email to the owner and everyone who voted from an account when a poll closes. Poll emails can be turned off in Settings; account emails can't.
 
@@ -95,7 +95,7 @@ One Next.js app is both UI and backend. **Postgres is the only source of truth**
 
 ```mermaid
 flowchart LR
-  B["Browser (mobile first)"] -- "HTTPS: pages + Server Actions" --> N["Next.js app<br/>Server Components, Server Actions,<br/>Route Handlers (CSV, email link, cron)"]
+  B["Browser (mobile first)"] -- "HTTPS: pages + Server Actions" --> N["Next.js app<br/>Server Components, Server Actions,<br/>Route Handlers (exports, email link, cron)"]
   N -- Prisma 7 + pg adapter --> P[(PostgreSQL)]
   N -- "ioredis: rate limits only<br/>(fails open)" --> R[(Redis)]
   N -- "after() / cron" --> E["Resend (email)"]
@@ -249,11 +249,15 @@ app/                     Routes (Server Components by default)
   (auth)/                login, register
   (app)/                 dashboard, polls/new, polls/[id]/{manage,edit}, settings
   (site)/                landing page, p/[slug] vote page and /results
-  api/polls/[id]/export  CSV route handler (the only API route besides Auth.js)
+  api/polls/[id]/export  owner-only downloads: ?format=csv|json|results-pdf|results-png|analytics-pdf
+  api/cron/emails        scheduled reminders and results emails
 actions/                 Server Actions: thin wrappers returning ActionResult
 lib/
   poll/                  services (create/update/vote/close), permissions, status, templates, submission parsing
-  insights/              computeInsights: common stats, standings/turnout trends, outcome/tie/consensus helpers
+  insights/              computeInsights: common stats, standings/turnout trends, outcome/tie/consensus helpers,
+                         and summary.ts: the plain-language verdict and result bars every view and export shares
+  export/                one loader for all exports; csv.ts, json.ts, results-image.tsx (next/og), pdf/ (@react-pdf/renderer)
+  email/                 Resend transport, templates, poll emails (invites, reminders, results)
   auth/                  guards (requireUser, requireOwner), password hashing, user service
   validation/            shared Zod schemas
   rate-limit.ts, redis.ts, csv.ts, datetime.ts, errors.ts
@@ -284,8 +288,8 @@ Each type is one folder under `poll-types/`, plugged into four registries that a
 | Layer | What it covers |
 |---|---|
 | **Unit / component** (`*.test.ts[x]` next to code) | permission matrix, poll status, every type's validation and insights (ties, too few votes, polarisation, late-added options), submission parsing, CSV escaping, time-zone maths, option editor, vote inputs, auto-refresh timing |
-| **Integration** (`tests/integration`) | DB constraints, auth and guards, rate limiter incl. fail-open, create/edit/vote/withdraw/close services and actions, concurrency (double submit), account deletion cascade, CSV route |
-| **E2E** (`tests/e2e`) | sign-up/in/out, create from templates, guest voting/changing/withdrawing, every poll type, the organiser journey with live updates, editing after votes, CSV/delete/account deletion, edge cases below, **axe WCAG 2.2 AA scans in light and dark mode**, security headers, skip link |
+| **Integration** (`tests/integration`) | DB constraints, auth and guards, rate limiter incl. fail-open, create/edit/vote/withdraw/close services and actions, concurrency (double submit), account deletion cascade, archiving and bulk actions, every export format (real PDF/PNG bytes, anonymous JSON), emails |
+| **E2E** (`tests/e2e`) | sign-up/in/out, create from templates, guest voting/changing/withdrawing, every poll type, the organiser journey with live updates, editing after votes, exports (CSV, JSON, PDFs, PNG), bulk archive/unarchive/delete, delete/account deletion, edge cases below, **axe WCAG 2.2 AA scans in light and dark mode**, security headers, skip link |
 
 E2E runs build the app and start it on port 3100 against `DATABASE_URL_TEST`. Each test gets its own `x-forwarded-for` IP so rate limits never leak between tests. The shared fixture in `tests/e2e/helpers.ts` skips Next's background link prefetches and closes every extra voter browser once its pages are idle, so runs stay free of aborted-response noise in the server log.
 
@@ -342,6 +346,9 @@ Every case from the design doc has defined behaviour and a test.
 | **Edits locked once people vote** | Type, type config and anonymity can't change, and voted options can't be removed, so earlier votes keep their meaning and voters' privacy expectations hold. |
 | **Private access keyed on email, groups live-linked** | Invite anyone before they have an account, with no claim step. Linking groups (instead of copying their members) means fixing a group fixes every poll it's on. Switching public ↔ private keeps invites and votes. |
 | **Create/edit form renders client-only** | Its defaults (browser time zone, "tomorrow", local deadline) only exist in the browser; server-rendering them would mismatch on hydration. |
+| **Archive closes the poll, without a results email** | Archiving means "I'm done with this"; an archived poll that still took votes, or emailed everyone, would surprise people. Everything stays, including the link, and invitees still see it (as closed). |
+| **PDFs drawn with @react-pdf/renderer, not a headless browser** | Plain Node, no Chromium to ship or keep patched. Charts are redrawn for print from the same insights and palette as the page, so every number matches; it's the web board's content, not a screenshot of it. |
+| **Results image via `next/og`** | Built into Next, fast, and sized to the number of options so it's shareable as is. |
 
 ## Known limitations
 
@@ -351,4 +358,5 @@ Every case from the design doc has defined behaviour and a test.
 - **Automatic emails need a scheduler.** Reminders before a deadline and results after one are sent by `/api/cron/emails`; without something calling it, only emails triggered by an action go out.
 - **Reminders are for private polls only**, since public polls don't have a list of who was invited. Results emails go only to people who voted from an account with a confirmed email.
 - **Accounts from before email verification start unconfirmed** and must follow a confirmation link (Settings → Resend) before their private-poll invites count again.
+- **PDFs use the built-in Helvetica**, so characters outside Western European Latin (e.g. CJK, emoji) in titles or options don't render in PDFs. The CSV, JSON and PNG exports handle them. Dates in reports are UTC.
 - **Local/demo setup only:** there is no deploy pipeline.

@@ -12,6 +12,7 @@ import { parsePollSubmission, type PollSubmission } from "./submission";
 
 const SLUG_ATTEMPTS = 3;
 const CLOSED_EDIT_MESSAGE = "This poll is closed. Reopen it to make changes.";
+const ARCHIVED_MESSAGE = "This poll is archived. Unarchive it first.";
 
 export async function createPoll(creatorId: string, input: unknown) {
   const parsed = parsePollSubmission(input);
@@ -42,7 +43,7 @@ export async function createPoll(creatorId: string, input: unknown) {
 }
 
 /** Prisma filter matching the polls getPollStatus would call open or closed at `now`. */
-function statusWhere(filter: PollFilter, now: Date): Prisma.PollWhereInput {
+function statusWhere(filter: Exclude<PollFilter, "archived">, now: Date): Prisma.PollWhereInput {
   if (filter === "closed") return { OR: [{ closedAt: { lte: now } }, { closesAt: { lte: now } }] };
   if (filter === "open") {
     return {
@@ -71,19 +72,26 @@ const pollListSelect = {
 /**
  * One page of the polls matching `scope`, newest first, plus the per-filter
  * counts. `page` comes back clamped to the last page, so callers can fix a stale URL.
+ * With `archive`, archived polls only show under their own filter; otherwise
+ * archiving is invisible (invitees still see an archived poll, as closed).
  */
 async function listPollPage<S extends Prisma.PollSelect>(
   scope: Prisma.PollWhereInput,
   select: S,
   { filter, q, page }: PollListParams,
   now: Date,
+  { archive = false }: { archive?: boolean } = {},
 ) {
+  const active: Prisma.PollWhereInput = archive ? { AND: [scope, { archivedAt: null }] } : scope;
+  const archived: Prisma.PollWhereInput = { AND: [scope, { archivedAt: { not: null } }] };
+  const filtered = filter === "archived" ? (archive ? archived : scope) : { AND: [active, statusWhere(filter, now)] };
   const where: Prisma.PollWhereInput = {
-    AND: [scope, statusWhere(filter, now), q ? { title: { contains: q, mode: "insensitive" } } : {}],
+    AND: [filtered, q ? { title: { contains: q, mode: "insensitive" } } : {}],
   };
-  const [all, open, total] = await Promise.all([
-    db.poll.count({ where: scope }),
-    db.poll.count({ where: { AND: [scope, statusWhere("open", now)] } }),
+  const [all, open, archivedCount, total] = await Promise.all([
+    db.poll.count({ where: active }),
+    db.poll.count({ where: { AND: [active, statusWhere("open", now)] } }),
+    archive ? db.poll.count({ where: archived }) : 0,
     db.poll.count({ where }),
   ]);
 
@@ -103,13 +111,13 @@ async function listPollPage<S extends Prisma.PollSelect>(
     total,
     page: currentPage,
     pageCount,
-    counts: { all, open, closed: all - open } satisfies Record<PollFilter, number>,
+    counts: { all, open, closed: all - open, archived: archivedCount } satisfies Record<PollFilter, number>,
   };
 }
 
 /** One page of an owner's polls. */
 export async function listPollsForOwner(creatorId: string, params: PollListParams, now: Date = new Date()) {
-  return listPollPage({ creatorId }, pollListSelect, params, now);
+  return listPollPage({ creatorId }, pollListSelect, params, now, { archive: true });
 }
 
 /**
@@ -162,6 +170,7 @@ export async function reopenPoll(pollId: string, input: unknown = {}, now: Date 
   const { closesAt } = parsed.data;
 
   const poll = await db.poll.findUniqueOrThrow({ where: { id: pollId } });
+  if (poll.archivedAt) throw new AppError(ErrorCode.CONFLICT, ARCHIVED_MESSAGE);
   if (isPollOpen(poll, now)) throw new AppError(ErrorCode.CONFLICT, "This poll is already open.");
   if (closesAt === undefined && deadlinePassed(poll, now)) {
     throw new AppError(ErrorCode.CONFLICT, "The deadline has passed. Set a new deadline to reopen this poll.");
@@ -267,6 +276,55 @@ export async function updatePoll(pollId: string, input: unknown, now: Date = new
 
 export async function deletePoll(pollId: string) {
   await db.poll.delete({ where: { id: pollId } });
+}
+
+/** Most polls one bulk action touches: a page of the dashboard is 10, "select all" can't exceed this. */
+export const MAX_BULK_POLLS = 100;
+
+/** Poll ids from the client, limited to the owner's own polls by every query below. */
+export function parsePollIds(input: unknown): string[] {
+  const parsed = z.array(z.uuid()).min(1).max(MAX_BULK_POLLS).safeParse(input);
+  if (!parsed.success) throw new AppError(ErrorCode.VALIDATION, "Select between 1 and 100 polls.");
+  return [...new Set(parsed.data)];
+}
+
+/**
+ * Closes the owner's selected polls that are still open, and returns their ids
+ * (so the caller can send results). Archived and already-closed polls are skipped.
+ */
+export async function closePolls(creatorId: string, ids: string[], now: Date = new Date()) {
+  const where: Prisma.PollWhereInput = { id: { in: ids }, creatorId, archivedAt: null, ...statusWhere("open", now) };
+  const open = await db.poll.findMany({ where, select: { id: true } });
+  await db.poll.updateMany({ where: { ...where, id: { in: open.map((poll) => poll.id) } }, data: { closedAt: now } });
+  return open.map((poll) => poll.id);
+}
+
+/**
+ * Archives the owner's selected polls: open ones close now (without a results
+ * email: archiving means putting it away), and all of them leave the main lists.
+ * Returns how many were archived.
+ */
+export async function archivePolls(creatorId: string, ids: string[], now: Date = new Date()) {
+  const scope: Prisma.PollWhereInput = { id: { in: ids }, creatorId, archivedAt: null };
+  const [, archived] = await db.$transaction([
+    db.poll.updateMany({ where: { ...scope, ...statusWhere("open", now) }, data: { closedAt: now, resultsEmailedAt: now } }),
+    db.poll.updateMany({ where: scope, data: { archivedAt: now } }),
+  ]);
+  return archived.count;
+}
+
+/** Puts archived polls back on the main lists. They stay closed; reopen them separately. */
+export async function unarchivePolls(creatorId: string, ids: string[]) {
+  const { count } = await db.poll.updateMany({
+    where: { id: { in: ids }, creatorId, archivedAt: { not: null } },
+    data: { archivedAt: null },
+  });
+  return count;
+}
+
+export async function deletePolls(creatorId: string, ids: string[]) {
+  const { count } = await db.poll.deleteMany({ where: { id: { in: ids }, creatorId } });
+  return count;
 }
 
 /** Deletes the account: their polls (and every vote on them) go too; their votes elsewhere stay, unlinked. */

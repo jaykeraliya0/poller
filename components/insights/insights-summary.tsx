@@ -2,29 +2,11 @@ import { SplitIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatRelative } from "@/lib/datetime";
 import type { PollInsights } from "@/lib/insights";
-import { MIN_RESPONSES_FOR_OUTCOME, formatList, plural, type Consensus } from "@/lib/insights/outcome";
+import { formatList, plural } from "@/lib/insights/outcome";
+import { CONSENSUS_LABEL, fallbackHeadline, verdictName } from "@/lib/insights/summary";
 import { Meter } from "./meter";
 import { OutcomeBadge } from "./outcome-badge";
 import { StatTile } from "./stat-tile";
-
-const CONSENSUS_LABEL: Record<Consensus, string> = {
-  STRONG: "Strong agreement",
-  MODERATE: "Some agreement",
-  SPLIT: "Opinions split",
-};
-
-function fallbackHeadline({ common, byType }: PollInsights, open: boolean): string {
-  switch (byType.outcome.kind) {
-    case "NO_VOTES":
-      return open ? "No votes yet" : "No votes";
-    case "TOO_FEW":
-      return open
-        ? `${plural(common.totalResponses, "vote")} so far. We'll call a leader after ${MIN_RESPONSES_FOR_OUTCOME}.`
-        : `Only ${plural(common.totalResponses, "vote")}, too few to call a winner.`;
-    default:
-      return open ? "Results so far" : "Final results";
-  }
-}
 
 /** "+2 votes" / "+1 person": how far ahead the leader is, in the type's own units. */
 function leadStat({ common, byType }: PollInsights): { value: string; detail: string } {
@@ -53,13 +35,6 @@ function leadStat({ common, byType }: PollInsights): { value: string; detail: st
     : { value: `+${leader.maybe - runnerUp.maybe}`, detail: `more "if need be" than ${runnerUp.shortLabel}` };
 }
 
-/** The option(s) the group landed on, when there is one to name. */
-function verdictName({ byType }: PollInsights): string | null {
-  const outcome = byType.outcome;
-  if (outcome.kind === "LEADER") return outcome.leader.label;
-  if (outcome.kind === "TIE") return formatList(outcome.tied.map((item) => item.label));
-  return null;
-}
 
 /**
  * The answer to "so what did the group decide?": the winning option's name set

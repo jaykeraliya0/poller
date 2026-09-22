@@ -6,9 +6,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckIcon, ChevronRightIcon, SearchIcon } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import { POLLS_PER_PAGE, pollListHref, type PollFilter, type PollListParams } from "@/lib/poll/list-params";
 import type { PollStatus } from "@/lib/poll/status";
+import { PollBulkBar } from "./poll-bulk-bar";
 import { PrivatePill } from "./private-pill";
 import { StatusPill } from "./status-badge";
 
@@ -71,10 +74,41 @@ type PollBrowserProps = {
   /** Polls matching the filter and search, across every page. */
   total: number;
   pageCount: number;
+  /** The filter tabs to offer, in order. */
+  filters?: readonly PollFilter[];
+  /** Owner lists: tick polls to close, archive or delete several at once. */
+  selectable?: boolean;
 };
 
-export function PollBrowser({ basePath, detailHeading, polls, params, counts, total, pageCount }: PollBrowserProps) {
+const FILTER_LABELS: Record<PollFilter, string> = { all: "All", open: "Open", closed: "Closed", archived: "Archived" };
+
+const EMPTY_MESSAGES: Record<PollFilter, string> = {
+  all: "No polls yet.",
+  open: "No open polls right now.",
+  closed: "No closed polls yet.",
+  archived: "Nothing archived. Archive polls you're done with to keep this list tidy.",
+};
+
+export function PollBrowser({
+  basePath,
+  detailHeading,
+  polls,
+  params,
+  counts,
+  total,
+  pageCount,
+  filters = ["all", "open", "closed"],
+  selectable = false,
+}: PollBrowserProps) {
   const { filter, q, page } = params;
+  // Selection belongs to the page being shown: a new filter, search or page starts empty.
+  const listKey = `${filter}|${q}|${page}|${polls.map((poll) => poll.id).join()}`;
+  const [selection, setSelection] = useState<{ key: string; ids: string[] }>({ key: listKey, ids: [] });
+  const selectedIds = selection.key === listKey ? selection.ids : [];
+  const setSelected = (ids: string[]) => setSelection({ key: listKey, ids });
+  const toggle = (id: string, checked: boolean) =>
+    setSelected(checked ? [...selectedIds, id] : selectedIds.filter((selected) => selected !== id));
+  const allSelected = polls.length > 0 && selectedIds.length === polls.length;
   const router = useRouter();
   const [isSearching, startSearch] = useTransition();
   const [query, setQuery] = useState(q);
@@ -99,11 +133,7 @@ export function PollBrowser({ basePath, detailHeading, polls, params, counts, to
     return () => clearTimeout(timer);
   }, [query, q, filter, router, basePath]);
 
-  const tabs: { value: PollFilter; label: string }[] = [
-    { value: "all", label: "All" },
-    { value: "open", label: "Open" },
-    { value: "closed", label: "Closed" },
-  ];
+  const tabs = filters.map((value) => ({ value, label: FILTER_LABELS[value] }));
   const firstShown = (page - 1) * POLLS_PER_PAGE + 1;
   const lastShown = firstShown + polls.length - 1;
 
@@ -147,23 +177,51 @@ export function PollBrowser({ basePath, detailHeading, polls, params, counts, to
 
       {polls.length === 0 ? (
         <p className="panel px-5 py-10 text-center text-sm text-muted-foreground">
-          {q ? `No polls match “${q}”.` : filter === "open" ? "No open polls right now." : "No closed polls yet."}
+          {q ? `No polls match “${q}”.` : EMPTY_MESSAGES[filter]}
         </p>
       ) : (
         <div className="panel overflow-hidden">
-          <div className="hidden grid-cols-[minmax(0,1fr)_10rem_11rem_8rem_1.25rem] gap-4 border-b px-5 py-2.5 text-xs font-medium text-muted-foreground md:grid" aria-hidden>
-            <span>Poll</span>
-            <span>Status</span>
-            <span>{detailHeading}</span>
-            <span>Created</span>
-            <span />
+          <div className="flex items-center border-b">
+            {selectable && (
+              <label className="flex min-h-11 items-center gap-3 py-2 pl-4 sm:pl-5 md:min-h-0">
+                <Checkbox
+                  checked={allSelected}
+                  indeterminate={selectedIds.length > 0 && !allSelected}
+                  onCheckedChange={(checked) => setSelected(checked ? polls.map((poll) => poll.id) : [])}
+                  aria-label="Select all polls on this page"
+                />
+                <span className="text-xs font-medium text-muted-foreground md:sr-only">Select all</span>
+              </label>
+            )}
+            <div
+              className={cn(
+                "hidden flex-1 grid-cols-[minmax(0,1fr)_10rem_11rem_8rem_1.25rem] gap-4 px-5 py-2.5 text-xs font-medium text-muted-foreground md:grid",
+                selectable && "pl-4",
+              )}
+              aria-hidden
+            >
+              <span>Poll</span>
+              <span>Status</span>
+              <span>{detailHeading}</span>
+              <span>Created</span>
+              <span />
+            </div>
           </div>
           <ul className="divide-y">
             {polls.map((poll) => (
-              <li key={poll.id}>
+              <li key={poll.id} className={cn(selectable && "flex items-center", selectedIds.includes(poll.id) && "bg-signal-wash/60")}>
+                {selectable && (
+                  <span className="flex self-stretch items-center pl-4 sm:pl-5">
+                    <Checkbox
+                      checked={selectedIds.includes(poll.id)}
+                      onCheckedChange={(checked) => toggle(poll.id, checked)}
+                      aria-label={`Select ${poll.title}`}
+                    />
+                  </span>
+                )}
                 <Link
                   href={poll.href}
-                  className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-4 py-3.5 outline-none transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/35 focus-visible:ring-inset sm:px-5 md:grid-cols-[minmax(0,1fr)_10rem_11rem_8rem_1.25rem]"
+                  className="group grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-4 py-3.5 outline-none transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/35 focus-visible:ring-inset sm:px-5 md:grid-cols-[minmax(0,1fr)_10rem_11rem_8rem_1.25rem]"
                 >
                   <span className="flex min-w-0 flex-col gap-0.5">
                     <span className="truncate font-semibold group-hover:text-signal-ink">{poll.title}</span>
@@ -187,6 +245,10 @@ export function PollBrowser({ basePath, detailHeading, polls, params, counts, to
             ))}
           </ul>
         </div>
+      )}
+
+      {selectable && selectedIds.length > 0 && (
+        <PollBulkBar selectedIds={selectedIds} archivedView={filter === "archived"} onDone={() => setSelected([])} />
       )}
 
       {total > 0 && (

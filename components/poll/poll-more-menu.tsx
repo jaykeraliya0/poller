@@ -1,9 +1,20 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { DownloadIcon, EllipsisIcon, Trash2Icon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
+  BracesIcon,
+  ChartColumnIcon,
+  EllipsisIcon,
+  FileTextIcon,
+  ImageIcon,
+  SheetIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { toast } from "sonner";
-import { deletePollAction } from "@/actions/polls";
+import { archivePollAction, deletePollAction, unarchivePollAction } from "@/actions/polls";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,16 +29,28 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { plural } from "@/lib/insights/outcome";
+import { EXPORT_FORMATS, type ExportFormat } from "@/lib/poll/export-formats";
 
-type PollMoreMenuProps = { pollId: string; title: string; responseCount: number };
+type PollMoreMenuProps = { pollId: string; title: string; responseCount: number; archived: boolean };
 
-export function PollMoreMenu({ pollId, title, responseCount }: PollMoreMenuProps) {
+const EXPORT_ICONS: Record<ExportFormat, typeof SheetIcon> = {
+  csv: SheetIcon,
+  json: BracesIcon,
+  "results-pdf": FileTextIcon,
+  "results-png": ImageIcon,
+  "analytics-pdf": ChartColumnIcon,
+};
+
+export function PollMoreMenu({ pollId, title, responseCount, archived }: PollMoreMenuProps) {
+  const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -38,19 +61,42 @@ export function PollMoreMenu({ pollId, title, responseCount }: PollMoreMenuProps
       toast.error(failure.message);
     });
 
+  const toggleArchive = () =>
+    startTransition(async () => {
+      const result = await (archived ? unarchivePollAction : archivePollAction)(pollId);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(archived ? "Poll unarchived" : "Poll archived. It's closed and off your main list.");
+      router.refresh();
+    });
+
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button variant="outline" size="icon-lg" aria-label="More actions" />}>
-          <EllipsisIcon />
+          {pending && !confirmOpen ? <Spinner /> : <EllipsisIcon />}
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          {/* A plain download link: the route handler streams the CSV. */}
-          <DropdownMenuItem render={<a href={`/api/polls/${pollId}/export`} download />}>
-            <DownloadIcon aria-hidden />
-            Download responses (CSV)
-          </DropdownMenuItem>
+        <DropdownMenuContent align="end" className="w-64">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Export</DropdownMenuLabel>
+            {/* Plain download links: the route handler builds each file. */}
+            {EXPORT_FORMATS.map(({ format, label }) => {
+              const Icon = EXPORT_ICONS[format];
+              return (
+                <DropdownMenuItem key={format} render={<a href={`/api/polls/${pollId}/export?format=${format}`} download />}>
+                  <Icon aria-hidden />
+                  {label}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={toggleArchive} disabled={pending}>
+            {archived ? <ArchiveRestoreIcon aria-hidden /> : <ArchiveIcon aria-hidden />}
+            {archived ? "Unarchive poll" : "Archive poll"}
+          </DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onClick={() => setConfirmOpen(true)}>
             <Trash2Icon aria-hidden />
             Delete poll
@@ -64,8 +110,9 @@ export function PollMoreMenu({ pollId, title, responseCount }: PollMoreMenuProps
             <AlertDialogTitle>Delete &ldquo;{title}&rdquo;?</AlertDialogTitle>
             <AlertDialogDescription>
               {responseCount > 0
-                ? `This permanently deletes the poll and ${plural(responseCount, "response")}. Consider downloading the CSV first.`
+                ? `This permanently deletes the poll and ${plural(responseCount, "response")}.`
                 : "This permanently deletes the poll. The link will stop working."}
+              {archived ? " Consider exporting it first." : " To keep it but get it out of the way, archive it instead."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

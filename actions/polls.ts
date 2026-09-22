@@ -2,11 +2,22 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect, unstable_rethrow } from "next/navigation";
-import { requireOwner, requireVerifiedUser } from "@/lib/auth/guards";
+import { requireOwner, requireUser, requireVerifiedUser } from "@/lib/auth/guards";
 import { deferEmail } from "@/lib/email/defer";
 import { sendResultsEmail } from "@/lib/email/poll-emails";
-import { ok, toActionFailure, type ActionFailure, type ActionResult } from "@/lib/errors";
-import { closePoll, createPoll, deletePoll, reopenPoll, updatePoll } from "@/lib/poll/service";
+import { AppError, ErrorCode, ok, toActionFailure, type ActionFailure, type ActionResult } from "@/lib/errors";
+import {
+  archivePolls,
+  closePoll,
+  closePolls,
+  createPoll,
+  deletePoll,
+  deletePolls,
+  parsePollIds,
+  reopenPoll,
+  unarchivePolls,
+  updatePoll,
+} from "@/lib/poll/service";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 /** Creates a poll and redirects to its manage page; returns only on failure. */
@@ -78,4 +89,68 @@ export async function deletePollAction(pollId: string): Promise<ActionFailure> {
     return toActionFailure(error);
   }
   redirect("/dashboard?deleted=1");
+}
+
+export async function archivePollAction(pollId: string): Promise<ActionResult> {
+  try {
+    const { user, poll } = await requireOwner(pollId);
+    await archivePolls(user.id, [poll.id]);
+    revalidatePollPages(poll.id, poll.slug);
+    return ok();
+  } catch (error) {
+    return toActionFailure(error);
+  }
+}
+
+export async function unarchivePollAction(pollId: string): Promise<ActionResult> {
+  try {
+    const { user, poll } = await requireOwner(pollId);
+    await unarchivePolls(user.id, [poll.id]);
+    revalidatePollPages(poll.id, poll.slug);
+    return ok();
+  } catch (error) {
+    return toActionFailure(error);
+  }
+}
+
+export type BulkPollAction = "close" | "archive" | "unarchive" | "delete";
+
+/**
+ * One action on several of the owner's polls from the dashboard. Polls that
+ * don't apply (already closed, someone else's, gone) are skipped, not errors;
+ * `count` says how many actually changed.
+ */
+export async function bulkPollAction(action: BulkPollAction, pollIds: unknown): Promise<ActionResult<{ count: number }>> {
+  try {
+    const user = await requireUser();
+    const ids = parsePollIds(pollIds);
+    let count: number;
+    switch (action) {
+      case "close": {
+        const closed = await closePolls(user.id, ids);
+        for (const id of closed) deferEmail("results", () => sendResultsEmail(id));
+        count = closed.length;
+        break;
+      }
+      case "archive":
+        count = await archivePolls(user.id, ids);
+        break;
+      case "unarchive":
+        count = await unarchivePolls(user.id, ids);
+        break;
+      case "delete":
+        count = await deletePolls(user.id, ids);
+        break;
+      default:
+        throw new AppError(ErrorCode.VALIDATION, "Unknown action.");
+    }
+    // Slugs aren't known here; refresh the owner's pages and every poll page.
+    revalidatePath("/dashboard");
+    revalidatePath("/polls/[id]/manage", "page");
+    revalidatePath("/p/[slug]", "page");
+    revalidatePath("/p/[slug]/results", "page");
+    return ok({ count });
+  } catch (error) {
+    return toActionFailure(error);
+  }
 }
