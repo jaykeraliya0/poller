@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { getPageItems, parsePollListParams, pollListHref } from "./list-params";
+import { POLL_FILTERS, POLL_SCOPES, getPageItems, parsePollListParams, pollListHref } from "./list-params";
 
 describe("parsePollListParams", () => {
   it("defaults to every poll on the first page", () => {
-    expect(parsePollListParams({})).toEqual({ filter: "all", q: "", page: 1 });
+    expect(parsePollListParams({})).toEqual({ scope: "mine", filter: "all", q: "", page: 1 });
   });
 
   it("reads status, search and page", () => {
     expect(parsePollListParams({ status: "closed", q: "  lunch ", page: "3" })).toEqual({
+      scope: "mine",
       filter: "closed",
       q: "lunch",
       page: 3,
@@ -19,7 +20,7 @@ describe("parsePollListParams", () => {
   });
 
   it("ignores unknown statuses and takes the first of repeated params", () => {
-    expect(parsePollListParams({ status: "deleted", page: ["2", "5"] })).toEqual({ filter: "all", q: "", page: 2 });
+    expect(parsePollListParams({ status: "deleted", page: ["2", "5"] })).toEqual({ scope: "mine", filter: "all", q: "", page: 2 });
   });
 
   it("only accepts the filters a list offers", () => {
@@ -30,6 +31,15 @@ describe("parsePollListParams", () => {
   it("caps very long searches", () => {
     expect(parsePollListParams({ q: "x".repeat(500) }).q).toHaveLength(100);
   });
+
+  it("ignores ?scope= on a list that offers no scope switcher", () => {
+    expect(parsePollListParams({ scope: "voted" }).scope).toBe("mine");
+  });
+
+  it("reads a scope the list does offer", () => {
+    expect(parsePollListParams({ scope: "voted" }, POLL_FILTERS, POLL_SCOPES).scope).toBe("voted");
+    expect(parsePollListParams({ scope: "nonsense" }, POLL_FILTERS, POLL_SCOPES).scope).toBe("mine");
+  });
 });
 
 describe("pollListHref", () => {
@@ -38,11 +48,21 @@ describe("pollListHref", () => {
     expect(pollListHref({ filter: "all", q: " ", page: 1 })).toBe("/dashboard");
   });
 
+  it("leaves the default scope out and names the other one", () => {
+    expect(pollListHref({ scope: "mine", filter: "open" })).toBe("/dashboard?status=open");
+    expect(pollListHref({ scope: "voted" })).toBe("/dashboard?scope=voted");
+  });
+
   it("round-trips through parsePollListParams", () => {
-    const href = pollListHref({ filter: "open", q: "team & co", page: 4 });
-    expect(href).toBe("/dashboard?status=open&q=team+%26+co&page=4");
+    const href = pollListHref({ scope: "voted", filter: "open", q: "team & co", page: 4 });
+    expect(href).toBe("/dashboard?scope=voted&status=open&q=team+%26+co&page=4");
     const params = Object.fromEntries(new URL(href, "http://x").searchParams);
-    expect(parsePollListParams(params)).toEqual({ filter: "open", q: "team & co", page: 4 });
+    expect(parsePollListParams(params, POLL_FILTERS, POLL_SCOPES)).toEqual({
+      scope: "voted",
+      filter: "open",
+      q: "team & co",
+      page: 4,
+    });
   });
 });
 

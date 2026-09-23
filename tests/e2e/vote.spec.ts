@@ -87,6 +87,43 @@ test("polls that require sign-in ask guests to sign in first", async ({ page, br
   await expect(voter).toHaveURL(new RegExp(`/login\\?next=${encodeURIComponent(pollPath).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
 });
 
+test("a signed-in voter finds the poll again under Voted", async ({ page, browser }) => {
+  await register(page, { name: "Otto", email: uniqueEmail(), password });
+  const pollPath = await createChoicePoll(page, { title: "Sprint demo slot", options: ["Tuesday", "Thursday"] });
+
+  const voter = await newVoterPage(browser);
+  await register(voter, { name: "Nadia", email: uniqueEmail(), password });
+  // With nothing made and nothing voted on, the dashboard is still just the starting point.
+  await expect(voter.getByRole("heading", { name: "No polls yet" })).toBeVisible();
+  await expect(voter.getByRole("link", { name: /^Voted/ })).toHaveCount(0);
+
+  await voter.goto(pollPath);
+  await voter.getByRole("radio", { name: "Thursday" }).click();
+  await voter.getByLabel("Your name").fill("Nadia");
+  await voter.getByRole("button", { name: "Submit vote" }).click();
+  await expect(voter.getByText("Your vote is in. Thanks!")).toBeVisible();
+
+  await voter.goto("/dashboard");
+  await voter.getByRole("link", { name: /^Voted/ }).click();
+  await expect(voter).toHaveURL(/\/dashboard\?scope=voted$/);
+
+  const row = voter.getByRole("link", { name: /Sprint demo slot/ });
+  await expect(row).toContainText("Thursday");
+  await expect(row).toContainText("by Otto");
+  await expect(row).toContainText("1 response");
+
+  // Searching and filtering stay inside the voted scope.
+  await voter.getByRole("link", { name: /^Closed/ }).click();
+  await expect(voter).toHaveURL(/scope=voted&status=closed/);
+  await expect(voter.getByText("No closed polls yet.")).toBeVisible();
+
+  // Their own polls list is untouched by the switch, and now offers the scope tabs.
+  await voter.getByRole("link", { name: /^My polls/ }).click();
+  await expect(voter).toHaveURL(/\/dashboard$/);
+  await expect(voter.getByText("No polls yet.", { exact: true })).toBeVisible();
+  await expect(voter.getByRole("link", { name: /Sprint demo slot/ })).toHaveCount(0);
+});
+
 test("an unknown poll link shows a friendly 404", async ({ page }) => {
   // The page streams (loading.tsx), so this is a soft 404: status 200 plus noindex.
   await page.goto("/p/zzzzzzzzzz");

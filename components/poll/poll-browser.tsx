@@ -9,7 +9,13 @@ import { Pagination } from "@/components/shared/pagination";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { POLLS_PER_PAGE, pollListHref, type PollFilter, type PollListParams } from "@/lib/poll/list-params";
+import {
+  POLLS_PER_PAGE,
+  pollListHref,
+  type PollFilter,
+  type PollListParams,
+  type PollScope,
+} from "@/lib/poll/list-params";
 import type { PollStatus } from "@/lib/poll/status";
 import { PollBulkBar } from "./poll-bulk-bar";
 import { PrivatePill } from "./private-pill";
@@ -25,8 +31,11 @@ export type PollSummary = {
   status: PollStatus;
   /** "Open", "Closes in 3 hours" or "Closed", computed on the server. */
   statusLabel: string;
-  /** Owners see turnout; invitees see whether they've voted. */
-  detail: { kind: "turnout"; responses: number; expected: number | null } | { kind: "vote"; voted: boolean };
+  /** Owners see turnout; invitees see whether they've voted; the voted list shows the answer itself. */
+  detail:
+    | { kind: "turnout"; responses: number; expected: number | null }
+    | { kind: "vote"; voted: boolean }
+    | { kind: "choice"; summary: string };
   createdLabel: string;
 };
 
@@ -62,11 +71,22 @@ function VoteState({ voted }: { voted: boolean }) {
   );
 }
 
+/** The voter's own answer, as summarizeAnswers renders it. */
+function ChoiceSummary({ summary }: { summary: string }) {
+  return summary ? (
+    <span className="line-clamp-2 text-sm">{summary}</span>
+  ) : (
+    <span className="text-sm text-muted-foreground">No answer recorded</span>
+  );
+}
+
 type PollBrowserProps = {
   /** The list's own page, which filter, search and page links point back to. */
   basePath: string;
   /** Column heading for the per-poll detail (turnout or your vote). */
   detailHeading: string;
+  /** Column heading for the last date column. */
+  createdHeading?: string;
   /** The current page of polls, already filtered and searched on the server. */
   polls: PollSummary[];
   params: PollListParams;
@@ -76,6 +96,10 @@ type PollBrowserProps = {
   pageCount: number;
   /** The filter tabs to offer, in order. */
   filters?: readonly PollFilter[];
+  /** With more than one scope, a switcher sits above the filter tabs. */
+  scopes?: readonly { value: PollScope; label: string; count: number }[];
+  /** Replaces the stock "no polls" line when the list is empty and unsearched. */
+  emptyMessage?: string;
   /** Owner lists: tick polls to close, archive or delete several at once. */
   selectable?: boolean;
 };
@@ -89,20 +113,48 @@ const EMPTY_MESSAGES: Record<PollFilter, string> = {
   archived: "Nothing archived. Archive polls you're done with to keep this list tidy.",
 };
 
+/** One pill in a segmented control, used for both the scope and filter rows. */
+function TabLink({
+  href,
+  current,
+  label,
+  count,
+}: {
+  href: string;
+  current: boolean;
+  label: string;
+  count: number;
+}) {
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      aria-current={current ? "page" : undefined}
+      className="flex h-8 items-center gap-1.5 rounded-[7px] px-3 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/35 aria-[current=page]:bg-panel aria-[current=page]:text-foreground aria-[current=page]:shadow-[0_1px_2px_rgb(21_24_35/0.08)]"
+    >
+      {label}
+      <span className="text-xs text-muted-foreground tabular-nums">{count}</span>
+    </Link>
+  );
+}
+
 export function PollBrowser({
   basePath,
   detailHeading,
+  createdHeading = "Created",
   polls,
   params,
   counts,
   total,
   pageCount,
   filters = ["all", "open", "closed"],
+  scopes,
+  emptyMessage,
   selectable = false,
 }: PollBrowserProps) {
-  const { filter, q, page } = params;
-  // Selection belongs to the page being shown: a new filter, search or page starts empty.
-  const listKey = `${filter}|${q}|${page}|${polls.map((poll) => poll.id).join()}`;
+  const { scope, filter, q, page } = params;
+  // Selection belongs to the page being shown: a new scope, filter, search or page starts empty.
+  const listKey = `${scope}|${filter}|${q}|${page}|${polls.map((poll) => poll.id).join()}`;
   const [selection, setSelection] = useState<{ key: string; ids: string[] }>({ key: listKey, ids: [] });
   const selectedIds = selection.key === listKey ? selection.ids : [];
   const setSelected = (ids: string[]) => setSelection({ key: listKey, ids });
@@ -128,10 +180,10 @@ export function PollBrowser({
     if (next === q) return;
     const timer = setTimeout(() => {
       setPushedQ(next);
-      startSearch(() => router.replace(pollListHref({ filter, q: next }, basePath), { scroll: false }));
+      startSearch(() => router.replace(pollListHref({ scope, filter, q: next }, basePath), { scroll: false }));
     }, SEARCH_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [query, q, filter, router, basePath]);
+  }, [query, q, scope, filter, router, basePath]);
 
   const tabs = filters.map((value) => ({ value, label: FILTER_LABELS[value] }));
   const firstShown = (page - 1) * POLLS_PER_PAGE + 1;
@@ -139,23 +191,35 @@ export function PollBrowser({
 
   return (
     <div className="flex flex-col gap-4">
+      {scopes && scopes.length > 1 && (
+        // Scopes offer different filters, so switching starts from a clean list.
+        <nav aria-label="Which polls to list" className="inline-flex self-start rounded-[10px] bg-foreground/[0.06] p-1">
+          {scopes.map((option) => (
+            <TabLink
+              key={option.value}
+              href={pollListHref({ scope: option.value }, basePath)}
+              current={scope === option.value}
+              label={option.label}
+              count={option.count}
+            />
+          ))}
+        </nav>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <nav aria-label="Filter polls" className="inline-flex self-start rounded-[10px] bg-foreground/[0.06] p-1">
           {tabs.map((tab) => (
-            <Link
+            <TabLink
               key={tab.value}
-              href={pollListHref({ filter: tab.value, q }, basePath)}
-              scroll={false}
-              aria-current={filter === tab.value ? "page" : undefined}
-              className="flex h-8 items-center gap-1.5 rounded-[7px] px-3 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/35 aria-[current=page]:bg-panel aria-[current=page]:text-foreground aria-[current=page]:shadow-[0_1px_2px_rgb(21_24_35/0.08)]"
-            >
-              {tab.label}
-              <span className="text-xs text-muted-foreground tabular-nums">{counts[tab.value]}</span>
-            </Link>
+              href={pollListHref({ scope, filter: tab.value, q }, basePath)}
+              current={filter === tab.value}
+              label={tab.label}
+              count={counts[tab.value]}
+            />
           ))}
         </nav>
         {/* A real GET form, so Enter (or no JavaScript at all) still searches. */}
         <Form action={basePath} role="search" className="relative sm:w-72">
+          {scope !== "mine" && <input type="hidden" name="scope" value={scope} />}
           {filter !== "all" && <input type="hidden" name="status" value={filter} />}
           <label>
           <span className="sr-only">Search polls</span>
@@ -177,7 +241,11 @@ export function PollBrowser({
 
       {polls.length === 0 ? (
         <p className="panel px-5 py-10 text-center text-sm text-muted-foreground">
-          {q ? `No polls match “${q}”.` : EMPTY_MESSAGES[filter]}
+          {q
+            ? `No polls match “${q}”.`
+            : filter === "all"
+              ? (emptyMessage ?? EMPTY_MESSAGES.all)
+              : EMPTY_MESSAGES[filter]}
         </p>
       ) : (
         <div className="panel overflow-hidden">
@@ -203,7 +271,7 @@ export function PollBrowser({
               <span>Poll</span>
               <span>Status</span>
               <span>{detailHeading}</span>
-              <span>Created</span>
+              <span>{createdHeading}</span>
               <span />
             </div>
           </div>
@@ -231,11 +299,13 @@ export function PollBrowser({
                     <StatusPill status={poll.status} label={poll.statusLabel} />
                     {poll.isPrivate && <PrivatePill />}
                   </span>
-                  <span className="md:col-auto">
+                  <span className="min-w-0 md:col-auto">
                     {poll.detail.kind === "turnout" ? (
                       <Turnout responses={poll.detail.responses} expected={poll.detail.expected} />
-                    ) : (
+                    ) : poll.detail.kind === "vote" ? (
                       <VoteState voted={poll.detail.voted} />
+                    ) : (
+                      <ChoiceSummary summary={poll.detail.summary} />
                     )}
                   </span>
                   <span className="justify-self-end text-sm text-muted-foreground md:justify-self-start">{poll.createdLabel}</span>
@@ -258,7 +328,11 @@ export function PollBrowser({
               ? `${total} ${total === 1 ? "poll" : "polls"}`
               : `Showing ${firstShown}–${lastShown} of ${total} polls`}
           </p>
-          <Pagination page={page} pageCount={pageCount} hrefFor={(target) => pollListHref({ filter, q, page: target }, basePath)} />
+          <Pagination
+            page={page}
+            pageCount={pageCount}
+            hrefFor={(target) => pollListHref({ scope, filter, q, page: target }, basePath)}
+          />
         </div>
       )}
     </div>

@@ -21,7 +21,7 @@ const as = (user: User): VoterIdentity => ({
 });
 const guest = (): VoterIdentity => ({ userId: null, userName: null, userEmail: null, userEmailVerified: false, voterToken: crypto.randomUUID() });
 
-const listParams = { filter: "all", q: "", page: 1 } as const;
+const listParams = { scope: "mine", filter: "all", q: "", page: 1 } as const;
 
 describe("private polls", () => {
   let owner: User;

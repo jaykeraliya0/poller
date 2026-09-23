@@ -14,7 +14,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const HOUR = 3_600_000;
 const signInAs = (id: string) => auth.mockResolvedValue({ user: { id, name: "Someone" }, authAt: Date.now() });
 const list = (ownerId: string, filter: "all" | "open" | "closed" | "archived") =>
-  listPollsForOwner(ownerId, { filter, q: "", page: 1 });
+  listPollsForOwner(ownerId, { scope: "mine", filter, q: "", page: 1 });
 const titles = async (ownerId: string, filter: "all" | "open" | "closed" | "archived") =>
   (await list(ownerId, filter)).polls.map((poll) => poll.title).sort();
 const guestVote = (poll: Awaited<ReturnType<typeof createChoicePoll>>, optionIndex: number, name: string) =>
@@ -72,7 +72,7 @@ describe("archiving", () => {
     await db.pollInvite.create({ data: { pollId: poll.id, email: invitee.email } });
     await archivePollAction(poll.id);
 
-    const shared = await listPollsSharedWith(invitee, { filter: "all", q: "", page: 1 });
+    const shared = await listPollsSharedWith(invitee, { scope: "mine", filter: "all", q: "", page: 1 });
     expect(shared.polls.map((item) => item.id)).toEqual([poll.id]);
   });
 });
