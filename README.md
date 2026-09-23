@@ -1,387 +1,42 @@
 # Poller
 
-A polling + insights app for small groups making a decision together: when to meet, what to build next, where the offsite goes, which workshop to run. Create a poll in a minute, share a link, and get **insights, not just counts**: "Fri 6pm works for 5/6 people (+1 if need be)", who's leading and by how much, whether the group agrees or is split, and what people said.
+Create a poll, share a link, and see what the group decided — with insights, not just counts.
 
-Built with **Next.js 16** (App Router, Server Actions), **shadcn/ui** (Base UI), **Tailwind CSS v4**, **PostgreSQL** via **Prisma 7**, **Auth.js v5**, **Redis** (rate limiting only) and **Resend** (email).
+## Features
 
----
+- **Four poll types** — pick an option, mark your availability across time slots, rank options in order, or rate them on a scale.
+- **Insights** — who's leading and by how much, whether the group agrees or is split, the best time slot as a plain sentence, and charts for every poll type.
+- **Share with anyone** — voters don't need an account unless you ask for one.
+- **Private polls** — invite people by email, or share with a saved group.
+- **Organiser controls** — deadlines, close and reopen, anonymous or named voting, and who gets to see the results.
+- **Edit and archive** — change a poll while it's open, archive it when it's done, and act on several polls at once from the dashboard.
+- **Exports** — responses as CSV, everything as JSON, reports as PDF, and a shareable results image.
+- **Emails** — invitations, reminders for people who haven't voted, and a "results are in" email when a poll closes.
 
-## Contents
+## Setup
 
-- [What it does](#what-it-does)
-- [Quick start](#quick-start)
-- [Deployment](#deployment)
-- [Architecture](#architecture)
-- [Data model](#data-model)
-- [Project structure](#project-structure)
-- [Adding a poll type](#adding-a-poll-type)
-- [Testing](#testing)
-- [Edge cases](#edge-cases)
-- [Security & accessibility](#security--accessibility)
-- [Decisions & trade-offs](#decisions--trade-offs)
-- [Known limitations](#known-limitations)
-
-## What it does
-
-**Four poll types**, each with its own input, validation and insights:
-
-| Type | Voter does | Key insights |
-|---|---|---|
-| **Choice** (single / multi) | Picks one or up to N options | Leader + margin, share of voters, consensus (strong / some / split), vote-share donut; multi-select adds options-per-voter and a picked-together heatmap |
-| **Availability** | Marks each time slot *Yes / If need be / No* | Best slot as a sentence ("Fri 6pm works for everyone (4/4)"), slots grouped by day, a day-by-day availability heatmap, voter's local time shown next to the poll's |
-| **Ranking** | Taps options in order of preference (top N or all) | Borda points, average rank, first-choice share, tie detection, rank-breakdown heatmap, head-to-head matrix with Condorcet winner |
-| **Rating** | Scores each option 1–5 or 1–10 | Average, median, histogram, **"opinions split"** when many rate very low *and* very high, diverging sentiment bars, average ± spread plot |
-
-**For the organiser:** templates for the four use cases, a dashboard, a live manage page (refreshes every 15 s), share link / native share sheet, deadline and close/reopen, anonymous or named voting, "require sign-in", results visibility (public / after voting / after close / owner only), **private polls** open only to people invited by email or through a **group** (a creator's own saved list of people, live-linked so membership changes apply straight away), expected-participants response rate, editing while the poll is open, **archiving** (closes the poll and moves it to an *Archived* tab, with everything kept; unarchive to reopen or edit), **bulk actions** on the dashboard (tick polls, or a whole page, to close, archive, unarchive or delete them), **exports** (responses as CSV, everything as JSON, a results report and an analytics report as PDF, and a shareable results image as PNG), and deleting polls or the account.
-
-**Email (via Resend):** confirm your address after signing up (you need it to create polls, and private-poll invites only count for confirmed addresses), reset a forgotten password (signs out every other session), invitation emails when someone is invited to a private poll directly or through a group (once per person per poll), a *remind people who haven't voted* button for private polls (once per 12 h) plus an automatic reminder a day before the deadline, and a *results are in* email to the owner and everyone who voted from an account when a poll closes. Poll emails can be turned off in Settings; account emails can't.
-
-**For voters:** no account needed (unless the organiser requires one or the poll is private), a *Shared with me* list of private polls they've been invited to, change or withdraw a vote while the poll is open, and land on the results straight after voting when allowed.
-
-**Demo data:**
-- `pnpm db:seed`: small and fast. Creates `demo@poller.dev` (organiser) and `voter@poller.dev` (password `password123` for both), plus one showcase poll per type, a closed poll, and a private poll shared with a "Leadership team" group that the voter account belongs to.
-- `pnpm db:seed:large`: **wipes the database** and loads the showcase plus a realistic dataset of ~600 users, ~450 polls (~95 private), ~60 groups, ~1,800 invites and group memberships and ~14,500 votes (~48,000 answers). Votes come from per-poll hidden preferences, so there are clear winners, close races, ties, polarised ratings, empty and near-empty polls, and options added mid-vote. Private polls are shared through groups and direct invites (some to people who haven't signed up yet), and only invitees vote on them, so reminders have someone left to nudge. Every account's email is confirmed, generated users have poll emails turned off (some of their domains are real), and seeded polls count as already emailed, so the first scheduled email run doesn't send a burst about old data. It's deterministic (seeded) and every generated user's password is `password123`.
-
-## Quick start
-
-**Prerequisites:** Node 20+ (tested on 24), pnpm, **PostgreSQL 16+** and **Redis 7+** (or Valkey) running natively.
+You'll need Node 20+, pnpm, PostgreSQL and Redis.
 
 ```bash
 pnpm install
 
-# Databases: dev, a shadow DB for Prisma migrate, and one for integration/e2e tests.
-# (template0 avoids a "collation version mismatch" on hosts whose glibc was upgraded.)
 createdb -T template0 poller_dev
 createdb -T template0 poller_shadow
-createdb -T template0 poller_test
 
-cp .env.example .env          # then set AUTH_SECRET (and CRON_SECRET): openssl rand -base64 32
-pnpm db:migrate               # applies migrations + generates the Prisma client
-pnpm db:seed                  # optional demo data
-pnpm dev                      # http://localhost:3000
+cp .env.example .env    # fill in AUTH_SECRET, see the comments in the file
+pnpm db:migrate
+pnpm db:seed            # optional demo data
+pnpm dev
 ```
 
-The app runs without Redis: rate limiting fails open with a logged warning.
+Open http://localhost:3000.
 
-### Email
+The demo seed creates two accounts, `demo@poller.dev` (organiser) and `voter@poller.dev`, both with the password `password123`.
 
-Emails go through [Resend](https://resend.com). Set `RESEND_API_KEY` and an `EMAIL_FROM` on a domain you've verified in Resend. Without an API key, emails are printed to the server console instead, so you can follow confirmation and reset links locally. Tests never send: they capture emails in memory.
+## Using it
 
-Invitation, verification, reset, manual-reminder and manual-close emails send straight after the action responds (Next's `after()`). **Automatic reminders and deadline results emails need a scheduler** to call the cron endpoint every few minutes:
-
-```bash
-# e.g. crontab: every 5 minutes
-*/5 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/cron/emails"
-```
-
-On Vercel, a Cron Job pointed at `/api/cron/emails` sends the same header automatically when `CRON_SECRET` is set. Each send is claimed in the database first, so overlapping or repeated runs never double-send. A poll whose deadline passed more than 24 hours before the job ran doesn't get a results email.
-
-### Trusted proxies
-
-Per-IP rate limits are only as trustworthy as the IP behind them. `x-forwarded-for` is a plain request header: anyone can send one, so honouring it blindly lets a single client mint a fresh rate-limit bucket per request.
-
-Set **`TRUSTED_PROXY_HOPS`** to how many proxies in front of the app append to that header — `1` behind a single reverse proxy (Vercel, nginx, an ALB), `2` with a CDN in front of that. Each proxy appends the address it received the connection from, so the app counts that many entries in from the right and ignores everything further left, which is whatever the client sent.
-
-The default is `0`: nothing trustworthy is in front, the header is ignored entirely, and every request shares one bucket. That is the safe direction to be wrong in, but it does mean per-IP limits apply to everyone at once — **set the real number in production**. Too high is the dangerous mistake: it starts trusting client-supplied entries again.
-
-### Deployment
-
-| Piece | Where |
-|---|---|
-| **CI** | `.github/workflows/ci.yml` — lint + typecheck, unit tests, and integration tests against Postgres 17 and Redis 8 service containers, on every push to `main` and every PR |
-| **Vercel** | `vercel.json` — migrates before the build on production deploys only (previews share the build command but must not touch the production database), the `/api/cron/emails` job every 10 minutes, and 60 s for the export and cron routes, which render PDFs and PNGs and send email. Cron frequency and `maxDuration` are both plan-limited: on Hobby, crons run once a day whatever the expression says. |
-| **Health** | `GET /api/health` — `200 {"status":"ok"}` when Postgres and Redis both answer, `200 "degraded"` when only Redis is down (rate limiting fails open, so the instance still serves), `503 "unhealthy"` when Postgres is unreachable. Point load balancer and uptime checks at it. |
-
-Set `AUTH_SECRET`, `CRON_SECRET`, `DATABASE_URL`, `REDIS_URL`, `APP_URL`, `RESEND_API_KEY`, `EMAIL_FROM` and `TRUSTED_PROXY_HOPS` in the environment. `SHADOW_DATABASE_URL` is only needed where `prisma migrate dev` runs, not in production.
-
-### Scripts
-
-| Script | What it does |
-|---|---|
-| `pnpm dev` / `build` / `start` | Next.js dev server / production build / serve the build |
-| `pnpm lint` · `pnpm typecheck` | ESLint · route typegen + `tsc --noEmit` |
-| `pnpm test` | Unit + component tests (Vitest, jsdom) |
-| `pnpm test:int` | Integration tests against `DATABASE_URL_TEST` and Redis |
-| `pnpm test:all` | Both of the above |
-| `pnpm test:e2e` | Playwright on mobile (Pixel 7) + desktop Chrome, against a production build on the test DB |
-| `pnpm test:e2e:all` | Adds the iPhone 14 (WebKit) project where WebKit can run |
-| `pnpm db:migrate` · `db:seed` · `db:reset` | Prisma migrations, small demo seed, full reset |
-| `pnpm db:seed:large` | Wipe the database and load thousands of realistic records |
-
-## Architecture
-
-One Next.js app is both UI and backend. **Postgres is the only source of truth**; insights are computed per request from it and never stored.
-
-```mermaid
-flowchart LR
-  B["Browser (mobile first)"] -- "HTTPS: pages + Server Actions" --> N["Next.js app<br/>Server Components, Server Actions,<br/>Route Handlers (exports, email link, cron)"]
-  N -- Prisma 7 + pg adapter --> P[(PostgreSQL)]
-  N -- "ioredis: rate limits only<br/>(fails open)" --> R[(Redis)]
-  N -- "after() / cron" --> E["Resend (email)"]
-  C["Scheduler"] -- "GET /api/cron/emails" --> N
-  B -. "router.refresh() every 15s<br/>while visible & open" .-> N
-```
-
-- **Pages are Server Components** that read the database directly. Client components are limited to forms, vote inputs, the Recharts charts, share controls and auto-refresh.
-- **Mutations are Server Actions** that return a typed `ActionResult` (`{ ok: true, data } | { ok: false, code, message, fieldErrors?, retryAfter? }`) and never throw expected errors at the UI.
-- **Thin actions, testable services.** Actions handle cookies, IPs, rate limits and revalidation; the logic lives in plain modules (`lib/poll/votes.ts`, `lib/poll/service.ts`) that integration tests call directly.
-- **`proxy.ts`** (Next 16's name for middleware) only does optimistic work: it redirects signed-out users away from app routes by *checking that a session cookie exists*, and issues the guest `voter_token` cookie. Every page and action re-checks authorisation itself.
-- **Validation is shared.** The same Zod schemas give the form instant feedback and are authoritative on the server; errors come back keyed by field path (`options.2.label`, `settings.closesAt`).
-
-### Core flows
-
-- **Create:** `requireUser` → rate limit (10/h/user) → validate details, settings and type setup in one pass → insert poll + options in one transaction → manage page with the share dialog.
-- **Vote:** rate limits (30/min/IP, 5/min/poll/IP) → load poll → private and not invited? open? sign-in rule? answers valid for *this* poll's options? → transaction: find the viewer's response (account first, then browser token) → update or insert → results page.
-- **Results:** `canViewResults` (permission matrix below) → load responses → `computeInsights` (common + type-specific) → summary, charts, analysis (standings over time, turnout, type-specific breakdowns), comments, who-voted list.
-- **Invite / groups:** owner check → rate limit (30/h/user) → parse a pasted email list (all-or-nothing, deduped, lowercased) → insert, skipping existing ones. A poll can only link groups owned by its creator.
-- **Close/reopen:** owner check → conditional update (so two concurrent closes can't both succeed) → results email. Reopening after the deadline has passed needs a new deadline (or none), and re-arms the automatic reminder and results email.
-- **Emails:** every send first claims its slot with a conditional write (`poll_invite_emails` row, `reminded_at`, `auto_reminded_at`, `results_emailed_at`), then sends. Link tokens are 32 random bytes; only their SHA-256 is stored, each works once, and issuing a new one voids the old.
-- **Edit:** owner check → closed polls are refused (`POLL_CLOSED`; reopen first) → validate → vote-aware locks → transaction whose poll update only applies while the poll is still open.
-
-### Permission matrix
-
-| Action | Guest | Signed-in voter | Owner |
-|---|---|---|---|
-| Open a **private** poll at all | No (asked to sign in) | Only if invited directly or via a linked group, **and** their email is confirmed | Yes |
-| View vote page / vote | Yes, unless *require sign-in* | Yes | Yes (counts like anyone) |
-| Change or withdraw own vote | If vote changes allowed and poll open | same | same |
-| View results | Per *results visibility* | same | Always |
-| See voter names | Named polls, when results are visible | same | Named polls only |
-| Create a poll | No | Once their email is confirmed | — |
-| Manage, edit, close, export, delete, invite | No | No | Yes |
-| See or manage a group | No | No | Its owner only |
-
-Private polls apply the first row before everything else; "public" results then mean *everyone invited*. Someone without access sees a notice with no title or description, and the page `<title>` is a generic "Private poll". Other people's polls and groups, and malformed ids, all return **404**, so ids can't be probed. The matrix is implemented as pure functions in [`lib/poll/permissions.ts`](lib/poll/permissions.ts) with table-driven tests.
-
-## Data model
-
-```mermaid
-erDiagram
-  users ||--o{ polls : creates
-  users |o--o{ responses : "casts (SET NULL on delete)"
-  polls ||--|{ poll_options : has
-  polls ||--o{ responses : receives
-  responses ||--|{ answers : contains
-  poll_options ||--o{ answers : "is answered in"
-  polls ||--o{ poll_invites : "invites (private)"
-  polls ||--o{ poll_invite_emails : "invite emails sent"
-  users ||--o{ email_tokens : "link tokens"
-  users ||--o{ groups : owns
-  groups ||--o{ group_members : has
-  polls ||--o{ poll_groups : "shared with"
-  groups ||--o{ poll_groups : "shared with"
-
-  users {
-    uuid id PK
-    citext email UK
-    text name
-    text password_hash
-    timestamptz email_verified_at
-    timestamptz password_changed_at
-    bool email_notifications
-  }
-  email_tokens {
-    uuid id PK
-    uuid user_id FK
-    EmailTokenPurpose purpose
-    text token_hash UK
-    timestamptz expires_at
-    timestamptz used_at
-  }
-  poll_invite_emails {
-    uuid poll_id PK
-    citext email PK
-  }
-  polls {
-    uuid id PK
-    uuid creator_id FK
-    text slug UK
-    PollType type
-    PollTemplate template
-    jsonb config
-    timestamptz closes_at
-    timestamptz closed_at
-    bool allow_vote_change
-    bool is_anonymous
-    bool require_login
-    ResultsVisibility results_visibility
-    PollVisibility visibility
-    int expected_participants
-    timestamptz reminded_at
-    timestamptz auto_reminded_at
-    timestamptz results_emailed_at
-  }
-  poll_invites {
-    uuid id PK
-    uuid poll_id FK
-    citext email
-  }
-  groups {
-    uuid id PK
-    uuid owner_id FK
-    text name
-  }
-  group_members {
-    uuid group_id PK
-    citext email PK
-  }
-  poll_groups {
-    uuid poll_id PK
-    uuid group_id PK
-  }
-  poll_options {
-    uuid id PK
-    uuid poll_id FK
-    text label
-    int position
-    timestamptz starts_at
-    timestamptz ends_at
-    timestamptz created_at
-  }
-  responses {
-    uuid id PK
-    uuid poll_id FK
-    text voter_token
-    uuid user_id FK
-    text voter_name
-    text comment
-  }
-  answers {
-    uuid response_id PK
-    uuid option_id PK
-    int value
-  }
-```
-
-- **One vote per browser and per account**, enforced by the database: `UNIQUE(poll_id, voter_token)` and `UNIQUE(poll_id, user_id)` (NULLs are distinct, so guests are constrained by token only). Double submits and races collide here and are retried as updates.
-- **`answers.value` depends on the type:** Choice `1` = picked; Availability `2 / 1 / 0` = yes / if need be / no; Ranking = rank (1 best); Rating = score.
-- **`polls.config`** holds type-specific settings (multi-select limit, time zone, top-N, scale), validated by the type's schema.
-- **`poll_options.created_at`** lets the app spot options added after someone voted.
-- **Invites and group members are emails, not user ids** (`citext`, like `users.email`), so people can be invited before they sign up, and access is checked against the signed-in account's email. `UNIQUE(owner_id, name)` keeps a creator's group names distinct.
-- **Only confirmed emails match invites.** `users.email_verified_at` is set by the confirmation link (or a password reset, which proves the same thing). `users.password_changed_at` is compared with the sign-in time stored in the session, so a reset signs out every older session.
-- CHECK constraints back up the app's own validation (positive expected participants, slots that end after they start).
-
-## Project structure
-
-```
-app/                     Routes (Server Components by default)
-  (auth)/                login, register
-  (app)/                 dashboard, polls/new, polls/[id]/{manage,edit}, settings
-  (site)/                landing page, p/[slug] vote page and /results
-  api/polls/[id]/export  owner-only downloads: ?format=csv|json|results-pdf|results-png|analytics-pdf
-  api/account/export     the signed-in account's whole data export, as JSON
-  api/cron/emails        scheduled reminders and results emails
-  api/health             Postgres + Redis probe for load balancers and uptime checks
-actions/                 Server Actions: thin wrappers returning ActionResult
-lib/
-  poll/                  services (create/update/vote/close), permissions, status, templates, submission parsing
-  insights/              computeInsights: common stats, standings/turnout trends, outcome/tie/consensus helpers,
-                         and summary.ts: the plain-language verdict and result bars every view and export shares
-  export/                one loader for all exports; csv.ts, json.ts, results-image.tsx (next/og), pdf/ (@react-pdf/renderer),
-                         account.ts: the GDPR "download my data" file
-  request.ts             the client IP, read from x-forwarded-for only as far as TRUSTED_PROXY_HOPS allows
-  email/                 Resend transport, templates, poll emails (invites, reminders, results)
-  auth/                  guards (requireUser, requireOwner), password hashing, user service
-  validation/            shared Zod schemas
-  rate-limit.ts, redis.ts, csv.ts, datetime.ts, errors.ts
-poll-types/<type>/       everything type-specific (see below)
-components/              ui/ (shadcn), forms/, poll-form/, poll/, vote/, insights/, shared/
-proxy.ts, auth.ts        Optimistic route guard + Auth.js config
-prisma/                  schema, migrations, seed
-tests/                   integration/, e2e/, fixtures/, setup/  (unit tests sit next to their code)
-```
-
-## Adding a poll type
-
-Each type is one folder under `poll-types/`, plugged into four registries that are full `Record<PollType, …>`s, so a half-added type fails to compile. **No page or route changes are needed:** Ranking and Rating were added this way.
-
-| File | Runs on | Provides |
-|---|---|---|
-| `definition.ts` | server + client | config/options schema, answer schema → rows, `toAnswerInput`, `computeInsights`, `summarizeAnswers`, `csvValue` |
-| `insights.ts` | server + client | pure insight computation (unit tested) |
-| `editor.tsx` | client | config fields + options editor for the create/edit form |
-| `vote-input.tsx` | client | the voting control, progress text and read-only answer summary |
-| `results-view.tsx` | server | the results chart for the type |
-| `analysis-view.tsx` | server | extra analysis panels for the type (heatmaps, breakdowns) |
-
-## Testing
-
-**~300 tests** across three layers: unit/component (Vitest + Testing Library), integration against a real Postgres and Redis, and end-to-end with Playwright on a mobile viewport.
-
-| Layer | What it covers |
-|---|---|
-| **Unit / component** (`*.test.ts[x]` next to code) | permission matrix, poll status, every type's validation and insights (ties, too few votes, polarisation, late-added options), submission parsing, CSV escaping, time-zone maths, option editor, vote inputs, auto-refresh timing |
-| **Integration** (`tests/integration`) | DB constraints, auth and guards, rate limiter incl. fail-open, create/edit/vote/withdraw/close services and actions, concurrency (double submit), account deletion cascade, archiving and bulk actions, every export format (real PDF/PNG bytes, anonymous JSON), emails |
-| **E2E** (`tests/e2e`) | sign-up/in/out, create from templates, guest voting/changing/withdrawing, every poll type, the organiser journey with live updates, editing after votes, exports (CSV, JSON, PDFs, PNG), bulk archive/unarchive/delete, delete/account deletion, edge cases below, **axe WCAG 2.2 AA scans in light and dark mode**, security headers, skip link |
-
-E2E runs build the app and start it on port 3100 against `DATABASE_URL_TEST`. Each test gets its own `x-forwarded-for` IP so rate limits never leak between tests. The shared fixture in `tests/e2e/helpers.ts` skips Next's background link prefetches and closes every extra voter browser once its pages are idle, so runs stay free of aborted-response noise in the server log.
-
-> **WebKit:** the iPhone 14 project needs WebKit's system libraries. On Ubuntu/macOS/CI run `pnpm test:e2e:all`; on distros Playwright doesn't support (e.g. Arch) WebKit can't launch, so `pnpm test:e2e` runs mobile + desktop Chrome.
-
-## Edge cases
-
-Every case from the design doc has defined behaviour and a test.
-
-| Case | Behaviour | Test |
-|---|---|---|
-| Poll has 0 votes | Empty state with the share link, not empty charts | `e2e/journey`, `insights/common.test` |
-| 1–2 votes | Counts shown, outcome *too few*, consensus/polarisation hidden | `choice.test`, `outcome.test` |
-| Exact tie | "Tied between A and B", no winner highlighted | `choice.test`, `ranking.test`, `rating.test`, `e2e/poll-types` |
-| Deadline passes while the form is open | `POLL_CLOSED`; the form keeps every input and shows a banner | `integration/votes`, `e2e/edge-cases` |
-| Double tap / two tabs | Button disabled while pending; unique constraint + retry → one response | `integration/votes` (concurrent) |
-| Guest votes, then signs in and votes again | Same browser token → the vote is updated and linked to the account | `integration/votes` |
-| Two accounts on one shared browser | Second account gets its own vote and a fresh token | `integration/votes` |
-| Voter clears cookies (guest poll) | Can vote again: a documented limit of guest mode, which *require sign-in* fixes | README ([limitations](#known-limitations)) |
-| Owner adds an option after votes | Allowed; returning voters see "New"; ranking/availability treat it as unanswered | `integration/edit-poll`, `ranking.test`, `availability.test`, `e2e/manage` |
-| Owner removes an option with votes | Blocked with a message; a vote landing mid-edit rolls the edit back | `integration/edit-poll` |
-| Owner edits a closed poll | Refused: no Edit button, the edit page says to reopen, and the server rejects the save (also if the poll closes mid-edit) | `integration/edit-poll`, `e2e/journey` |
-| Owner reopens after the deadline passed | Reopen asks for a new deadline, or none | `integration/poll-lifecycle` |
-| Owner votes on own poll | Counts like anyone | `integration/votes` |
-| Owner deletes account | Their polls (and all votes on them) are deleted; their votes elsewhere stay, unlinked | `integration/schema`, `integration/account-and-export`, `e2e/manage` |
-| Very long option labels | Wrap in cards and results; never clipped | visual checks at 360 px |
-| 20 options / 50 slots | Hard limits; slots grouped by day | `choice.test`, `availability.test` |
-| Voter in another time zone | Poll's time zone plus "your time" | `datetime.test`, `e2e/edge-cases` |
-| Invalid or deleted slug | Friendly 404 (`noindex`) | `e2e/vote` |
-| Redis down | Rate limits fail open with a warning; everything else works | `integration/rate-limit` |
-| More votes than expected | "100%+"-style note, meter capped at full | `insights/common.test` |
-| Anonymous poll with comments | No names anywhere (even for the owner or in CSV), day-level dates only | `common.test`, `integration/account-and-export`, `e2e/poll-types` |
-
-## Security & accessibility
-
-- **Auth:** argon2id hashes; unknown email and wrong password take the same time and give the same message; the JWT holds only user id, name and sign-in time; `requireUser` re-checks the account exists and that the session started after the last password reset, so deleted accounts and pre-reset sessions lose access immediately.
-- **Email links:** single-use, hashed at rest, short-lived (confirmation 48 h, reset 1 h); "forgot password" gives the same answer whether or not the account exists and sends after responding, so neither message nor timing reveals accounts; pages reached from links send no referrer.
-- **Authorization** in every action, page and route handler; the proxy is only an optimistic redirect layer.
-- **Input:** Zod everywhere, answers validated against the poll's own option ids, `?next=` redirects restricted to same-origin paths, CSV cells escaped against formula injection.
-- **Headers:** `nosniff`, `frame-ancestors 'none'` / `X-Frame-Options: DENY`, strict referrer policy, restrictive permissions policy, no `X-Powered-By`.
-- **Client IP:** `x-forwarded-for` is only read as far as `TRUSTED_PROXY_HOPS` says it can be ([Trusted proxies](#trusted-proxies)), so per-IP rate limits can't be spoofed by sending the header.
-- **Abuse:** Redis sliding-window rate limits on login (10/15 min/IP), register (5/h/IP), create (10/h/user), vote (30/min/IP, 5/min/poll/IP), invites and group members (30/h/user), forgot password (5/15 min/IP and 3/h/address), reset submissions (10/15 min/IP), resending confirmation (3/h/user), account data export (5/h/user); manual reminders once per 12 h per poll.
-- **Your data:** Settings → *Download my data* returns the whole account as one JSON file (profile, created polls with every response, groups, votes cast elsewhere). Anonymous polls stay anonymous in it, exactly as in the per-poll export. Deleting the account cascades to every poll it created.
-- **Accessibility:** axe WCAG 2.2 AA scans of every main screen pass in light *and* dark mode; ≥ 40–44 px tap targets on phones; labelled controls with errors linked via `aria-describedby`; status never shown by colour alone (icons + text); a skip link; the live indicator respects reduced motion; chart colours are a single-hue ramp for magnitude plus a small categorical set for multi-series charts, both validated for contrast and colour-blind separation in both themes; every chart has a legend with values, cell numbers or a screen-reader table, so colour is never the only channel.
-
-## Decisions & trade-offs
-
-| Decision | Why |
-|---|---|
-| **15 s polling (`router.refresh`) instead of SSE** | Simpler and robust behind any proxy; one server render per open tab every 15 s is cheap at this scale. Pauses when the tab is hidden. |
-| **Redis only for rate limits; no results cache** | Insights are cheap to compute and always correct from Postgres, with no cache invalidation to get wrong. Redis failing doesn't break anything. |
-| **Insights computed per request, never stored** | Pure functions of (poll, responses, now) are easy to test and can't drift from the votes. |
-| **Proxy checks cookie presence only** | Running Auth.js in the proxy re-issued the session cookie on every request, so an in-flight prefetch could sign a user back in after sign-out (found by a flaky e2e test). |
-| **Tap-to-rank instead of drag and drop** | Works on phones, with keyboards and with screen readers. |
-| **Soft 404 for unknown poll links** | The vote page streams a loading skeleton, so the status is already 200 when the lookup fails; Next adds `noindex`. A hard 404 would need a DB query in the proxy on every request. |
-| **Edits locked once people vote** | Type, type config and anonymity can't change, and voted options can't be removed, so earlier votes keep their meaning and voters' privacy expectations hold. |
-| **Private access keyed on email, groups live-linked** | Invite anyone before they have an account, with no claim step. Linking groups (instead of copying their members) means fixing a group fixes every poll it's on. Switching public ↔ private keeps invites and votes. |
-| **Create/edit form renders client-only** | Its defaults (browser time zone, "tomorrow", local deadline) only exist in the browser; server-rendering them would mismatch on hydration. |
-| **Archive closes the poll, without a results email** | Archiving means "I'm done with this"; an archived poll that still took votes, or emailed everyone, would surprise people. Everything stays, including the link, and invitees still see it (as closed). |
-| **PDFs drawn with @react-pdf/renderer, not a headless browser** | Plain Node, no Chromium to ship or keep patched. Charts are redrawn for print from the same insights and palette as the page, so every number matches; it's the web board's content, not a screenshot of it. |
-| **Results image via `next/og`** | Built into Next, fast, and sized to the number of options so it's shareable as is. |
-
-## Known limitations
-
-- **Guest voting is per browser.** Clearing cookies or switching browsers allows another vote. Use *Require sign-in to vote* when that matters.
-- **Rate limits trust `x-forwarded-for`.** Deploy behind a proxy that sets it; without one, clients can spoof it.
-- **No nonce-based Content-Security-Policy yet** (only `frame-ancestors`). A full CSP is the next hardening step for production.
-- **Automatic emails need a scheduler.** Reminders before a deadline and results after one are sent by `/api/cron/emails`; without something calling it, only emails triggered by an action go out.
-- **Reminders are for private polls only**, since public polls don't have a list of who was invited. Results emails go only to people who voted from an account with a confirmed email.
-- **Accounts from before email verification start unconfirmed** and must follow a confirmation link (Settings → Resend) before their private-poll invites count again.
-- **PDFs use the built-in Helvetica**, so characters outside Western European Latin (e.g. CJK, emoji) in titles or options don't render in PDFs. The CSV, JSON and PNG exports handle them. Dates in reports are UTC.
-- **Local/demo setup only:** there is no deploy pipeline.
+1. **Sign up** and confirm your email address.
+2. **Create a poll** — start from a template or build your own, pick a type, add your options, and set a deadline if you want one.
+3. **Share it** — copy the link, or invite people by email for a private poll.
+4. **Watch it fill in** on the manage page, and nudge anyone who hasn't voted yet.
+5. **Close the poll** when you're ready and read the results, or export them to share elsewhere.
