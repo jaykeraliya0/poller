@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { CircleCheckIcon } from "lucide-react";
+import { CircleCheckIcon, DownloadIcon } from "lucide-react";
 import { DeleteAccountForm } from "@/components/account/delete-account-form";
 import { EmailNotificationsSwitch } from "@/components/account/email-notifications-switch";
 import { ResendVerificationButton } from "@/components/account/resend-verification-button";
 import { AppPage } from "@/components/layout/app-page";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { requirePageUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 
@@ -75,6 +76,23 @@ export default async function SettingsPage() {
               </div>
             )}
             <EmailNotificationsSwitch enabled={emailNotifications} />
+          </div>
+        </SettingsSection>
+
+        <SettingsSection
+          id="data-heading"
+          title="Your data"
+          description="A copy of everything this account holds, as one JSON file."
+        >
+          <div className="panel flex flex-wrap items-center justify-between gap-3 p-4">
+            <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+              Your profile, every poll you created with all its responses, your groups, and the votes you cast on other
+              people&apos;s polls. Polls you set to anonymous stay anonymous in the file.
+            </p>
+            <Button variant="outline" render={<a href="/api/account/export" download />}>
+              <DownloadIcon aria-hidden />
+              Download my data
+            </Button>
           </div>
         </SettingsSection>
 

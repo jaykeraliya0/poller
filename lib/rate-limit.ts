@@ -25,6 +25,8 @@ export const RATE_LIMITS = {
   export: { limit: 30, windowMs: 10 * MINUTE },
   /** Resending the confirmation email, per user. */
   "verify-email": { limit: 3, windowMs: HOUR },
+  /** Downloading the whole account as JSON, per user. It reads every poll they own. */
+  "account-export": { limit: 5, windowMs: HOUR },
 } as const;
 
 export type RateLimitScope = keyof typeof RATE_LIMITS;

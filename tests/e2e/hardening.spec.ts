@@ -10,6 +10,17 @@ test("responses carry security headers", async ({ request }) => {
   expect(headers["x-powered-by"]).toBeUndefined();
 });
 
+test("the health check reports Postgres and Redis", async ({ request }) => {
+  const response = await request.get("/api/health");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["cache-control"]).toBe("no-store");
+  expect(await response.json()).toMatchObject({ status: "ok", checks: { database: { ok: true }, redis: { ok: true } } });
+});
+
+test("signed-out visitors can't download account data", async ({ request }) => {
+  expect((await request.get("/api/account/export")).status()).toBe(401);
+});
+
 test("keyboard users can skip straight to the content", async ({ page }) => {
   await page.goto("/");
   await page.keyboard.press("Tab");
