@@ -30,6 +30,14 @@ export default defineConfig({
     timeout: 180_000,
     // E2E runs against the disposable test database, never the dev one.
     // Emails land in EMAIL_OUTBOX_DIR as files, so tests can follow their links; never through Resend.
-    env: { DATABASE_URL: process.env.DATABASE_URL_TEST ?? "", APP_URL: baseURL, EMAIL_OUTBOX_DIR, RESEND_API_KEY: "" },
+    // Playwright takes the place of the reverse proxy here: it sets one
+    // x-forwarded-for per test, so each test gets its own rate-limit bucket.
+    env: {
+      DATABASE_URL: process.env.DATABASE_URL_TEST ?? "",
+      APP_URL: baseURL,
+      EMAIL_OUTBOX_DIR,
+      RESEND_API_KEY: "",
+      TRUSTED_PROXY_HOPS: "1",
+    },
   },
 });

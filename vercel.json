@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "if [ \"$VERCEL_ENV\" = production ]; then prisma migrate deploy; fi && next build",
+  "crons": [
+    {
+      "path": "/api/cron/emails",
+      "schedule": "*/10 * * * *"
+    }
+  ],
+  "functions": {
+    "app/api/polls/*/export/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/account/export/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/cron/emails/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}

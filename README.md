@@ -10,6 +10,7 @@ Built with **Next.js 16** (App Router, Server Actions), **shadcn/ui** (Base UI),
 
 - [What it does](#what-it-does)
 - [Quick start](#quick-start)
+- [Deployment](#deployment)
 - [Architecture](#architecture)
 - [Data model](#data-model)
 - [Project structure](#project-structure)
@@ -74,6 +75,24 @@ Invitation, verification, reset, manual-reminder and manual-close emails send st
 ```
 
 On Vercel, a Cron Job pointed at `/api/cron/emails` sends the same header automatically when `CRON_SECRET` is set. Each send is claimed in the database first, so overlapping or repeated runs never double-send. A poll whose deadline passed more than 24 hours before the job ran doesn't get a results email.
+
+### Trusted proxies
+
+Per-IP rate limits are only as trustworthy as the IP behind them. `x-forwarded-for` is a plain request header: anyone can send one, so honouring it blindly lets a single client mint a fresh rate-limit bucket per request.
+
+Set **`TRUSTED_PROXY_HOPS`** to how many proxies in front of the app append to that header — `1` behind a single reverse proxy (Vercel, nginx, an ALB), `2` with a CDN in front of that. Each proxy appends the address it received the connection from, so the app counts that many entries in from the right and ignores everything further left, which is whatever the client sent.
+
+The default is `0`: nothing trustworthy is in front, the header is ignored entirely, and every request shares one bucket. That is the safe direction to be wrong in, but it does mean per-IP limits apply to everyone at once — **set the real number in production**. Too high is the dangerous mistake: it starts trusting client-supplied entries again.
+
+### Deployment
+
+| Piece | Where |
+|---|---|
+| **CI** | `.github/workflows/ci.yml` — lint + typecheck, unit tests, and integration tests against Postgres 17 and Redis 8 service containers, on every push to `main` and every PR |
+| **Vercel** | `vercel.json` — migrates before the build on production deploys only (previews share the build command but must not touch the production database), the `/api/cron/emails` job every 10 minutes, and 60 s for the export and cron routes, which render PDFs and PNGs and send email. Cron frequency and `maxDuration` are both plan-limited: on Hobby, crons run once a day whatever the expression says. |
+| **Health** | `GET /api/health` — `200 {"status":"ok"}` when Postgres and Redis both answer, `200 "degraded"` when only Redis is down (rate limiting fails open, so the instance still serves), `503 "unhealthy"` when Postgres is unreachable. Point load balancer and uptime checks at it. |
+
+Set `AUTH_SECRET`, `CRON_SECRET`, `DATABASE_URL`, `REDIS_URL`, `APP_URL`, `RESEND_API_KEY`, `EMAIL_FROM` and `TRUSTED_PROXY_HOPS` in the environment. `SHADOW_DATABASE_URL` is only needed where `prisma migrate dev` runs, not in production.
 
 ### Scripts
 
@@ -250,13 +269,17 @@ app/                     Routes (Server Components by default)
   (app)/                 dashboard, polls/new, polls/[id]/{manage,edit}, settings
   (site)/                landing page, p/[slug] vote page and /results
   api/polls/[id]/export  owner-only downloads: ?format=csv|json|results-pdf|results-png|analytics-pdf
+  api/account/export     the signed-in account's whole data export, as JSON
   api/cron/emails        scheduled reminders and results emails
+  api/health             Postgres + Redis probe for load balancers and uptime checks
 actions/                 Server Actions: thin wrappers returning ActionResult
 lib/
   poll/                  services (create/update/vote/close), permissions, status, templates, submission parsing
   insights/              computeInsights: common stats, standings/turnout trends, outcome/tie/consensus helpers,
                          and summary.ts: the plain-language verdict and result bars every view and export shares
-  export/                one loader for all exports; csv.ts, json.ts, results-image.tsx (next/og), pdf/ (@react-pdf/renderer)
+  export/                one loader for all exports; csv.ts, json.ts, results-image.tsx (next/og), pdf/ (@react-pdf/renderer),
+                         account.ts: the GDPR "download my data" file
+  request.ts             the client IP, read from x-forwarded-for only as far as TRUSTED_PROXY_HOPS allows
   email/                 Resend transport, templates, poll emails (invites, reminders, results)
   auth/                  guards (requireUser, requireOwner), password hashing, user service
   validation/            shared Zod schemas
@@ -330,7 +353,9 @@ Every case from the design doc has defined behaviour and a test.
 - **Authorization** in every action, page and route handler; the proxy is only an optimistic redirect layer.
 - **Input:** Zod everywhere, answers validated against the poll's own option ids, `?next=` redirects restricted to same-origin paths, CSV cells escaped against formula injection.
 - **Headers:** `nosniff`, `frame-ancestors 'none'` / `X-Frame-Options: DENY`, strict referrer policy, restrictive permissions policy, no `X-Powered-By`.
-- **Abuse:** Redis sliding-window rate limits on login (10/15 min/IP), register (5/h/IP), create (10/h/user), vote (30/min/IP, 5/min/poll/IP), invites and group members (30/h/user), forgot password (5/15 min/IP and 3/h/address), reset submissions (10/15 min/IP), resending confirmation (3/h/user); manual reminders once per 12 h per poll.
+- **Client IP:** `x-forwarded-for` is only read as far as `TRUSTED_PROXY_HOPS` says it can be ([Trusted proxies](#trusted-proxies)), so per-IP rate limits can't be spoofed by sending the header.
+- **Abuse:** Redis sliding-window rate limits on login (10/15 min/IP), register (5/h/IP), create (10/h/user), vote (30/min/IP, 5/min/poll/IP), invites and group members (30/h/user), forgot password (5/15 min/IP and 3/h/address), reset submissions (10/15 min/IP), resending confirmation (3/h/user), account data export (5/h/user); manual reminders once per 12 h per poll.
+- **Your data:** Settings → *Download my data* returns the whole account as one JSON file (profile, created polls with every response, groups, votes cast elsewhere). Anonymous polls stay anonymous in it, exactly as in the per-poll export. Deleting the account cascades to every poll it created.
 - **Accessibility:** axe WCAG 2.2 AA scans of every main screen pass in light *and* dark mode; ≥ 40–44 px tap targets on phones; labelled controls with errors linked via `aria-describedby`; status never shown by colour alone (icons + text); a skip link; the live indicator respects reduced motion; chart colours are a single-hue ramp for magnitude plus a small categorical set for multi-series charts, both validated for contrast and colour-blind separation in both themes; every chart has a legend with values, cell numbers or a screen-reader table, so colour is never the only channel.
 
 ## Decisions & trade-offs

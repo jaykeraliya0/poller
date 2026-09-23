@@ -52,6 +52,19 @@ test("owner downloads the CSV and deletes the poll", async ({ page }) => {
   await expect(page.getByText("No polls yet")).toBeVisible();
 });
 
+test("a user downloads a copy of their account data", async ({ page }) => {
+  await register(page, { name: "Data Owner", email: uniqueEmail("data"), password });
+  await createChoicePoll(page, { title: "In my export" });
+
+  await page.goto("/settings");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Download my data" }).click();
+  const download = await downloadPromise;
+
+  expect(download.suggestedFilename()).toMatch(/^poller-account-\d{4}-\d\d-\d\d\.json$/);
+  expect(await download.failure()).toBeNull();
+});
+
 test("a user deletes their account after confirming their email", async ({ page }) => {
   const email = uniqueEmail();
   await register(page, { name: "Leaving Soon", email, password });
