@@ -148,6 +148,64 @@ export async function listPollsSharedWith(
   );
 }
 
+/**
+ * Polls this user has voted on and can still reach. A private poll drops off
+ * the list once the invite (or the group carrying it) is gone, matching what
+ * canAccessPoll would say if they opened it again.
+ */
+function votedScope(user: { id: string; email: string }): Prisma.PollWhereInput {
+  return {
+    responses: { some: { userId: user.id } },
+    OR: [
+      { visibility: "PUBLIC" },
+      { creatorId: user.id },
+      { invites: { some: { email: user.email } } },
+      { groups: { some: { group: { members: { some: { email: user.email } } } } } },
+    ],
+  };
+}
+
+/** Adds the poll's own vote, plus everything summarizeAnswers and canViewResults need. */
+const votedPollSelect = (userId: string) =>
+  ({
+    ...pollListSelect,
+    creatorId: true,
+    config: true,
+    allowVoteChange: true,
+    isAnonymous: true,
+    requireLogin: true,
+    resultsVisibility: true,
+    creator: { select: { name: true } },
+    options: {
+      select: { id: true, label: true, position: true, startsAt: true, endsAt: true, createdAt: true },
+      orderBy: { position: "asc" },
+    },
+    responses: {
+      where: { userId },
+      select: { createdAt: true, updatedAt: true, answers: { select: { optionId: true, value: true } } },
+      take: 1,
+    },
+  }) satisfies Prisma.PollSelect;
+
+/**
+ * One page of the polls this user has voted on, including their own. Archiving
+ * is the owner's own filing, so archived polls simply list under their status.
+ */
+export async function listPollsVotedOn(
+  user: { id: string; email: string },
+  params: PollListParams,
+  now: Date = new Date(),
+) {
+  return listPollPage(votedScope(user), votedPollSelect(user.id), params, now);
+}
+
+/** Totals for the dashboard's scope switcher; each page only needs the one it isn't listing. */
+export const countOwnedPolls = (creatorId: string) =>
+  db.poll.count({ where: { creatorId, archivedAt: null } });
+
+export const countVotedPolls = (user: { id: string; email: string }) =>
+  db.poll.count({ where: votedScope(user) });
+
 /** Closes an open poll now. The owner check happens in the caller (requireOwner). */
 export async function closePoll(pollId: string, now: Date = new Date()) {
   const poll = await db.poll.findUniqueOrThrow({ where: { id: pollId } });
