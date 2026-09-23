@@ -124,6 +124,35 @@ test("a signed-in voter finds the poll again under Voted", async ({ page, browse
   await expect(voter.getByRole("link", { name: /Sprint demo slot/ })).toHaveCount(0);
 });
 
+test("poll pages keep the app shell for signed-in visitors and the public header for guests", async ({
+  page,
+  browser,
+}) => {
+  await register(page, { name: "Priya", email: uniqueEmail(), password });
+  const pollPath = await createChoicePoll(page, { title: "Chrome check" });
+
+  // Signed in: the same sidebar nav as the dashboard, on the public poll page and its results.
+  for (const path of [pollPath, `${pollPath}/results`]) {
+    await page.goto(path);
+    await expect(page.locator('nav[aria-label="Main"]')).toBeAttached();
+    await expect(page.getByRole("link", { name: "Get started" })).toHaveCount(0);
+  }
+  // Stray URLs too, so signing in never drops you onto an unfamiliar page.
+  await page.goto("/p/zzzzzzzzzz");
+  await expect(page.locator('nav[aria-label="Main"]')).toBeAttached();
+
+  // Guests keep the public header and its sign-up call to action.
+  const guest = await newVoterPage(browser);
+  await guest.goto(pollPath);
+  await expect(guest.locator('nav[aria-label="Main"]')).toHaveCount(0);
+  await expect(guest.getByRole("link", { name: "Get started" })).toBeVisible();
+
+  // The marketing landing page stays on the public header either way.
+  await page.goto("/");
+  await expect(page.locator('nav[aria-label="Main"]')).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "My polls" })).toBeVisible();
+});
+
 test("an unknown poll link shows a friendly 404", async ({ page }) => {
   // The page streams (loading.tsx), so this is a soft 404: status 200 plus noindex.
   await page.goto("/p/zzzzzzzzzz");
