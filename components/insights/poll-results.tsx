@@ -23,9 +23,11 @@ type PollResultsProps = {
   emptyAction?: React.ReactNode;
   /** Extra panel at the top of the side rail once there are votes, e.g. the share link. */
   rail?: React.ReactNode;
+  /** Stats, trends, analysis, comments and the voter list are for the organiser; voters get the results alone. */
+  analytics?: boolean;
 };
 
-export function PollResults({ poll, insights, rows, showNames, now, emptyAction, rail }: PollResultsProps) {
+export function PollResults({ poll, insights, rows, showNames, now, emptyAction, rail, analytics = true }: PollResultsProps) {
   const { common, trends } = insights;
   const { standings } = trends;
 
@@ -45,17 +47,43 @@ export function PollResults({ poll, insights, rows, showNames, now, emptyAction,
     );
   }
 
+  const results = (
+    <BoardSection id="results-heading" title="Results">
+      <TypeResultsView insights={insights.byType} totalResponses={common.totalResponses} open={common.status !== "CLOSED"} />
+    </BoardSection>
+  );
+  const comments = common.comments.length > 0 && (
+    <BoardSection id="comments-heading" title="Comments" count={common.comments.length}>
+      <ShowMore
+        items={common.comments}
+        initial={10}
+        noun="comments"
+        render={(comments) => <CommentsFeed comments={comments} now={now} />}
+      />
+    </BoardSection>
+  );
+  const voters = showNames && (
+    <BoardSection id="voters-heading" title="Who voted" count={rows.length} description="Latest first.">
+      <ShowMore items={rows} initial={25} noun="voters" render={(items) => <ResponsesList rows={items} now={now} />} />
+    </BoardSection>
+  );
+
+  if (!analytics) {
+    return (
+      <div className="flex max-w-3xl flex-col gap-6">
+        <InsightsHeadline insights={insights} />
+        {results}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <InsightsHeadline insights={insights} />
 
       {/* Phones read results, the summary rail, the analysis, then the (long) voter list. */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[auto_auto_1fr] lg:items-start">
-        <div className="min-w-0 lg:col-start-1 lg:row-start-1">
-          <BoardSection id="results-heading" title="Results">
-            <TypeResultsView insights={insights.byType} totalResponses={common.totalResponses} open={common.status !== "CLOSED"} />
-          </BoardSection>
-        </div>
+        <div className="min-w-0 lg:col-start-1 lg:row-start-1">{results}</div>
 
         <aside aria-label="Summary" className="flex flex-col gap-4 lg:col-start-2 lg:row-span-3 lg:row-start-1">
           {rail}
@@ -77,16 +105,7 @@ export function PollResults({ poll, insights, rows, showNames, now, emptyAction,
             </BoardSection>
           )}
 
-          {common.comments.length > 0 && (
-            <BoardSection id="comments-heading" title="Comments" count={common.comments.length}>
-              <ShowMore
-                items={common.comments}
-                initial={10}
-                noun="comments"
-                render={(comments) => <CommentsFeed comments={comments} now={now} />}
-              />
-            </BoardSection>
-          )}
+          {comments}
         </aside>
 
         {/* Hidden until a panel renders: some polls have nothing extra to show yet. */}
@@ -112,13 +131,7 @@ export function PollResults({ poll, insights, rows, showNames, now, emptyAction,
           </div>
         </section>
 
-        {showNames && (
-          <div className="min-w-0 lg:col-start-1 lg:row-start-3">
-            <BoardSection id="voters-heading" title="Who voted" count={rows.length} description="Latest first.">
-              <ShowMore items={rows} initial={25} noun="voters" render={(items) => <ResponsesList rows={items} now={now} />} />
-            </BoardSection>
-          </div>
-        )}
+        {voters && <div className="min-w-0 lg:col-start-1 lg:row-start-3">{voters}</div>}
       </div>
     </div>
   );

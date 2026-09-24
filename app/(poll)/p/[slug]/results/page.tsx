@@ -96,6 +96,7 @@ export default async function ResultsPage({ params }: PageProps<"/p/[slug]/resul
         insights={insights}
         rows={rows}
         showNames={canSeeVoterNames(poll, viewer, now)}
+        analytics={viewer.isOwner}
         now={now}
         emptyAction={
           open && !existing ? (
